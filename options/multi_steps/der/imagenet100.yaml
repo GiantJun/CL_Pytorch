@@ -1,0 +1,53 @@
+######### Basic Settings #########
+basic:
+    device: '0'
+    seed: [1993] # icarl 官方代码给的种子是 1993
+
+    dataset: imagenet100
+    shuffle: true
+
+    # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
+    method: der
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    apply_nme: false
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: resnet18
+    pretrained: false
+    save_models: true # if true, programm will save model's weights during incremental train
+
+    ######### Exampler Hyperparameters #########
+    memory_size: 2000
+    fixed_memory: false # false
+    sampling_method: herding # herding, random, closest_to_mean 
+
+    ######### Task Settings, unimportant in Joint #########
+    # for some datasets(e.g. MedMNist), this will be ignored
+    split_dataset: true
+    init_cls: 10
+    increment: 10
+
+    note: seed1997
+    # test_epoch: 40
+
+######### Method's Hyperparameters #########
+special:
+    incre_type: cil
+    T: 1
+
+######### Experiment Settings for Datasets #########
+options:        
+    imagenet100: 
+        resnet18:
+            opt_type: sgd
+            epochs: 150 # 130
+            lrate: 0.1
+            scheduler: multi_step
+            milestones: [80, 120]
+            lrate_decay: 0.1
+            weight_decay: 0.0005
+            batch_size: 128
+            num_workers: 8

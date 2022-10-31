@@ -1,0 +1,59 @@
+######### Basic Settings #########
+basic:
+    device: '8'
+    seed: [30] # icarl 官方代码给的种子是 1993
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: imagenet1000
+    shuffle: true
+
+    # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
+    method: lucir
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: cosine_resnet18
+    pretrained: false
+    save_models: false # if true, programm will save model's weights during incremental train
+
+    ######### Exampler Hyperparameters #########
+    memory_size: 2000
+    fixed_memory: true # true, as the paper reported
+    sampling_method: herding # herding, random, closest_to_mean
+
+    apply_nme: true
+
+    ######### Task Settings, unimportant in Joint #########
+    # for some datasets(e.g. MedMNist), this will be ignored
+    split_dataset: true
+    init_cls: 50
+    increment: 10
+
+
+######### Method's Hyperparameters #########
+special:
+    incre_type: cil
+    # ImageNet1000
+    lambda_base: 10
+    K: 2
+    margin: 0.5
+    nb_proxy: 1
+    
+
+######### Experiment Settings for Datasets #########
+options:    
+    imagenet1000: 
+        cosine_resnet18:
+            opt_type: sgd
+            epochs: 90 #170
+            lrate: 0.1
+            scheduler: multi_step
+            milestones: [30, 60]
+            lrate_decay: 0.1
+            batch_size: 128
+            weight_decay: 0.0001
+            num_workers: 16
+            

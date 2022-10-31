@@ -1,0 +1,28 @@
+# search_programme configs
+is_parallel: true
+process_per_GPU: 2
+all_device: '5,6'
+exp_count: 4
+
+method: grid # random, grid, bayes
+metric:
+    name: Test_Acc
+    goal: maximize # minimize, maximize
+parameters:
+    # grid search
+    batch_size:
+        # integers between 32 and 256
+        # with evenly-distributed logarithms 
+        # distribution: q_log_uniform
+        # q: 1
+        # min: math.log(32),
+        # max: math.log(256)
+        values: [32, 64, 128]
+    
+    lrate:
+        # distribution: uniform
+        # min: 0.
+        # max: 0.01
+        values: [0.001, 0.0001, 0.00001]
+
+

@@ -1,0 +1,19 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            // "program": "search_param.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            // "args": ["--config","options/multi_steps/end2end/cifar100.yaml"]
+            "args": ["--config","options/cur_exp/single_step/cnn_prompt_v1.yaml"]
+        }
+    ]
+}
