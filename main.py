@@ -6,8 +6,6 @@ import torch
 from utils.data_manager import DataManager
 import methods
 
-
-os.environ['WANDB_API_KEY']='faf0e04a242bbf756c5f2894f620681e0a7dc358'
 os.environ['WANDB_MODE']='offline'
 
 def set_random(seed):
