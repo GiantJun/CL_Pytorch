@@ -7,7 +7,7 @@ import torch
 from torch import nn, optim
 
 from utils.center_loss import CenterLoss
-from utils.toolkit import accuracy, tensor2numpy
+from utils.toolkit import tensor2numpy
 
 EPSILON = 1e-8
 
@@ -33,15 +33,15 @@ class BaseLearner(object):
         self._criterion_name = config.criterion
         self._method = config.method
         self._dataset = config.dataset
+        self._use_valid = config.use_valid
         self._backbone = config.backbone
         self._seed = config.seed
         self._save_models = config.save_models
 
-        self._multiple_gpus = list(range(len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))))
+        self._gpu_num = config.gpu_num
         self._eval_metric = config.eval_metric
         self._logdir = config.logdir
         self._opt_type = config.opt_type
-        self._history_epochs = 0
 
         # notice: if "init_epochs" is not assigned, it will follow the value of "epochs"
         # the same as the other "init_XXX"
@@ -50,10 +50,14 @@ class BaseLearner(object):
         self._num_workers = config.num_workers
 
         self._criterion = None
+        self._valid_loader = None
 
     @property
     def cur_taskID(self):
         return self._cur_task
+    
+    def set_save_models(self, choise:bool):
+        self._save_models = choise
 
     @abc.abstractmethod
     def prepare_task_data(self, data_manager):
@@ -64,12 +68,13 @@ class BaseLearner(object):
         self._cur_classes = data_manager.get_task_size(self._cur_task)
         self._total_classes = self._known_classes + self._cur_classes
         self._train_loader = None
+        self._valid_loader = None
         self._test_loader = None
         self._criterion = None
         # your code
 
     @abc.abstractmethod
-    def prepare_model(self):
+    def prepare_model(self, checkpoint=None):
         '''
         prepare the model for the next stage training
         '''
@@ -78,42 +83,63 @@ class BaseLearner(object):
 
     # need to be overwrite probably, base is finetune
     def incremental_train(self):
-        if len(self._multiple_gpus) > 1:
-            self._network = nn.DataParallel(self._network, self._multiple_gpus)
+        if self._gpu_num > 1:
+            self._network = nn.DataParallel(self._network, list(range(self._gpu_num)))
         self._logger.info('-'*10 + ' Learning on task {}: {}-{} '.format(self._cur_task, self._known_classes, self._total_classes-1) + '-'*10)
         optimizer = self._get_optimizer(filter(lambda p: p.requires_grad, self._network.parameters()), self._config)
         scheduler = self._get_scheduler(optimizer, self._config)
-        self._network = self._train_model(self._network, self._train_loader, self._test_loader, optimizer, scheduler, self._epochs)
-        if len(self._multiple_gpus) > 1:
+        self._network = self._train_model(model=self._network, train_loader=self._train_loader, test_loader=self._test_loader, 
+                optimizer=optimizer, scheduler=scheduler, epochs=self._epochs, valid_loader=self._valid_loader)
+        if self._gpu_num > 1:
             self._network = self._network.module
+    
+    def store_samples(self):
+        pass
 
-    def _train_model(self, model, train_loader, test_loader, optimizer, scheduler, epochs=100):
+    def _train_model(self, model, train_loader, test_loader, optimizer, scheduler, epochs=100, valid_loader=None):
+        best_epoch_info = {'valid_acc': 0.}
         for epoch in range(epochs):
             model, train_acc, train_losses = self._epoch_train(model, train_loader, optimizer, scheduler)
             # update record_dict
             record_dict = {}
-            # record_dict['epoch'] = self._history_epochs+epoch
+
+            info = ('Task {}, Epoch {}/{} => '.format(self._cur_task, epoch+1, epochs) + 
+                ('{} {:.3f}, '* int(len(train_losses)/2)).format(*train_losses))
+            
             for i in range(int(len(train_losses)/2)):
                 record_dict['Train_'+train_losses[i*2]] = train_losses[i*2+1]
-            record_dict['Train_Acc'] = train_acc
-
-            if self._config.test_epoch == None or epoch % self._config.test_epoch == 0:
-                test_acc = self._epoch_test(model, test_loader)
-                record_dict['Test_Acc'] = test_acc
-
-                info = ('Task {}, Epoch {}/{} => '.format(self._cur_task, epoch+1, epochs) + 
-                ('{} {:.3f}, '* int(len(train_losses)/2)).format(*train_losses) +
-                'Train_accy {:.2f}, Test_accy {:.2f}'.format(train_acc, test_acc))
+            
+            if train_acc is not None:
+                record_dict['Train_Acc'] = train_acc
+                info = info + 'Train_accy {:.2f}, '.format(train_acc)          
+            
+            if 'pretrain' == self._config.method_type:
+                if epoch+1 % 100 == 0:
+                    self.save_checkpoint('{}_{}_{}_seed{}_epoch{}.pkl'.format(
+                        self._config.mode, self._dataset, self._backbone, self._seed, epoch+1), 
+                        self._network)
             else:
-                info = ('Task {}, Epoch {}/{} => '.format(self._cur_task, epoch+1, epochs) + 
-                ('{} {:.3f}, '* int(len(train_losses)/2)).format(*train_losses) +
-                'Train_accy {:.2f}'.format(train_acc))
+                if self._use_valid and valid_loader is not None:
+                    valid_acc = self._epoch_test(model, valid_loader)
+                    record_dict['Valid_Acc'] = valid_acc
+                    info = info + 'Valid_accy {:.2f}'.format(valid_acc)
+                    if best_epoch_info['valid_acc'] < valid_acc:
+                        best_epoch_info['best_epoch'] = epoch
+                        best_epoch_info['valid_acc'] = valid_acc
+                        best_epoch_info['model_dict'] = model.state_dict()
+
+                if self._config.test_epoch == None or (epoch+1) % self._config.test_epoch == 0:
+                    test_acc = self._epoch_test(model, test_loader)
+                    record_dict['Test_Acc'] = test_acc
+                    info = info + 'Test_accy {:.2f}'.format(test_acc)
 
             self._logger.info(info)
-            # wandb.log(record_dict, step=self._history_epochs+epoch)
-            self._logger.visual_log('train', record_dict, step=self._history_epochs+epoch)
+            self._logger.visual_log('train', record_dict, step=epoch)
         
-        self._history_epochs += epochs
+        if self._use_valid and valid_loader is not None:
+            model.load_state_dict(best_epoch_info['model_dict'])
+            self._logger.info('Reloaded model in epoch {}, with valid acc {}'.format(best_epoch_info['best_epoch'], 
+                    best_epoch_info['valid_acc']))
         return model
 
     def _epoch_train(self, model, train_loader, optimizer, scheduler):
@@ -144,15 +170,17 @@ class BaseLearner(object):
     def _epoch_test(self, model, test_loader, ret_pred_target=False):
         cnn_correct, total = 0, 0
         cnn_pred_all, target_all = [], []
+        cnn_max_scores_all = []
         model.eval()
         for _, inputs, targets in test_loader:
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs, feature_outputs = model(inputs)
-            cnn_preds = torch.max(outputs, dim=1)[1]
+            cnn_max_scores, cnn_preds = torch.max(torch.softmax(outputs, dim=-1), dim=-1)
             
             if ret_pred_target:
                 cnn_pred_all.append(tensor2numpy(cnn_preds))
                 target_all.append(tensor2numpy(targets))
+                cnn_max_scores_all.append(tensor2numpy(cnn_max_scores))
             else:
                 cnn_correct += cnn_preds.eq(targets).cpu().sum()
                 total += len(targets)
@@ -160,7 +188,8 @@ class BaseLearner(object):
         if ret_pred_target:
             cnn_pred_all = np.concatenate(cnn_pred_all)
             target_all = np.concatenate(target_all)
-            return cnn_pred_all, target_all
+            cnn_max_scores_all = np.concatenate(cnn_max_scores_all)
+            return cnn_pred_all, cnn_max_scores_all, target_all
         else:
             test_acc = np.around(tensor2numpy(cnn_correct)*100 / total, decimals=2)
             return test_acc
@@ -177,20 +206,22 @@ class BaseLearner(object):
     def after_task(self):
         self._known_classes = self._total_classes
         if self._save_models:
-            self.save_checkpoint('{}_{}_{}_task{}_seed{}.pkl'.format(
-                self._method, self._dataset, self._backbone, self._seed), 
+            self.save_checkpoint('seed{}_{}_{}_{}.pkl'.format(
+                self._seed, self._method, self._dataset, self._backbone), 
                 self._network)
     
+    def release(self):
+        self._network = self._network.cpu()
+        self._network = None
 
     def save_checkpoint(self, filename, model=None, state_dict=None):
         save_path = os.path.join(self._logdir, filename)
         if state_dict != None:
-            model_dict = state_dict
+            torch.save({'state_dict': state_dict, 'config':self._config.get_parameters_dict()}, save_path)
         else:
-            model_dict = model.state_dict()
-        torch.save({'state_dict': model_dict, 'config':self._config.get_save_config()}, 
-                save_path)
-        self._logger.info('model state dict saved at: {}'.format(save_path))
+            torch.save({'state_dict': model.state_dict(), 'config':self._config.get_parameters_dict()}, save_path)
+        self._logger.info('checkpoint saved at: {}'.format(save_path))
+    
 
     def _get_optimizer(self, params, config, **kwargs):
         optimizer = None
@@ -212,7 +243,7 @@ class BaseLearner(object):
         elif config.scheduler == None:
             scheduler = None
         else: 
-            raise ValueError('No scheduler: {}'.format(config.scheduler))
+            raise ValueError('Unknown scheduler: {}'.format(config.scheduler))
         return scheduler
     
     def _get_criterion(self, loss_name):

@@ -32,8 +32,8 @@ class WA(Finetune_IL):
         if self._incre_type != 'cil':
             raise ValueError('WA is a class incremental method!')
 
-    def prepare_model(self):
-        super().prepare_model()
+    def prepare_model(self, checkpoint=None):
+        super().prepare_model(checkpoint)
         if self._old_network is not None:
             self._old_network.cuda()
 
@@ -47,7 +47,7 @@ class WA(Finetune_IL):
         if self._cur_task > 0:
             self._network.weight_align(self._total_classes-self._known_classes)
 
-    def _epoch_train(self, model, train_loader, optimizer, scheduler):
+    def _epoch_train(self, model, train_loader, optimizer, scheduler, task_begin=None, task_end=None, task_id=None):
         losses = 0.
         losses_clf, losses_kd = 0., 0.
         correct, total = 0, 0
@@ -56,12 +56,12 @@ class WA(Finetune_IL):
             inputs, targets = inputs.cuda(), targets.cuda()
             logits, feature_outputs = model(inputs)
             
-            loss_clf = F.cross_entropy(logits, targets)
+            loss_clf = F.cross_entropy(logits[:,:task_end], targets)
             losses_clf += loss_clf.item()
             if self._old_network == None:
                 loss = loss_clf
             else:
-                loss_kd = self._KD_loss(logits[:,:self._known_classes],self._old_network(inputs)[0],self._T)
+                loss_kd = self._KD_loss(logits[:,:task_begin],self._old_network(inputs)[0],self._T)
                 losses_kd += loss_kd.item()
                 loss = loss_clf + loss_kd
 
@@ -75,7 +75,8 @@ class WA(Finetune_IL):
             correct += preds.eq(targets).cpu().sum()
             total += len(targets)
         
-        scheduler.step()
+        if scheduler != None:
+            scheduler.step()
         train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
         train_loss = ['Loss', losses/len(train_loader), 'Loss_clf', losses_clf/len(train_loader), 'Loss_kd', losses_kd/len(train_loader)]
         return model, train_acc, train_loss

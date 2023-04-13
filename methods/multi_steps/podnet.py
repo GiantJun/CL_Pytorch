@@ -65,11 +65,18 @@ class PODNet(Finetune_IL):
         if self._incre_type != 'cil':
             raise ValueError('PODNet is a class incremental method!')
 
-    def prepare_model(self):
+    def prepare_model(self, checkpoint=None):
         if self._network == None:
             self._network = CosineIncrementalNet(self._logger, self._config.backbone, self._config.pretrained, 
                         self._config.pretrain_path, self._layer_names, self._nb_proxy)
         self._network.update_fc(self._total_classes, self._cur_task)
+
+        if checkpoint is not None:
+            self._network.load_state_dict(checkpoint['state_dict'])
+            if checkpoint['memory_class_means'] is not None and self._memory_bank is not None:
+                self._memory_bank.set_class_means(checkpoint['memory_class_means'])
+            self._logger.info("Loaded checkpoint model's state_dict !")
+
         for name, param in self._network.fc.named_parameters():
             if 'fc1' in name:
                 param.requires_grad = False
@@ -93,8 +100,6 @@ class PODNet(Finetune_IL):
         self._old_network = self._network.copy().freeze()
 
     def incremental_train(self):
-        if len(self._multiple_gpus) > 1:
-            self._network = torch.nn.DataParallel(self._network, self._multiple_gpus)
         self._logger.info('-'*10 + ' Learning on task {}: {}-{} '.format(self._cur_task, self._known_classes, self._total_classes-1) + '-'*10)
         if self._cur_task == 0:
             epochs = self._init_epochs
@@ -102,7 +107,7 @@ class PODNet(Finetune_IL):
             epochs = self._epochs
         optimizer = self._get_optimizer(filter(lambda p: p.requires_grad, self._network.parameters()), self._config, self._cur_task==0)
         scheduler = self._get_scheduler(optimizer, self._config, self._cur_task==0)
-        self._network = self._train_model(self._network, self._train_loader, self._test_loader, optimizer, scheduler, epochs)
+        self._network = self._train_model(self._network, self._train_loader, self._test_loader, optimizer, scheduler, task_id=self._cur_task, epochs=epochs)
         
         if self._cur_task > 0:
             self._logger.info('Finetune the network (classifier part) with the balanced dataset!')
@@ -112,13 +117,10 @@ class PODNet(Finetune_IL):
             self._logger.info('The size of finetune dataset: {}'.format(len(finetune_train_dataset)))
             ft_optimizer = optim.SGD(filter(lambda p: p.requires_grad, self._network.parameters()), momentum=0.9, lr=self._lrate_finetune, weight_decay=self._config.weight_decay)
             ft_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=ft_optimizer, T_max=self._epochs_finetune)
-            self._network = self._train_model(self._network, finetune_train_loader, self._test_loader, ft_optimizer, ft_scheduler, self._epochs_finetune)
-        if len(self._multiple_gpus) > 1:
-            self._network = self._network.module
-        if self._memory_bank != None:
-            self._memory_bank.store_samplers(self._sampler_dataset, self._network)
+            self._network = self._train_model(self._network, finetune_train_loader, self._test_loader, ft_optimizer, ft_scheduler, task_id=self._cur_task, epochs=self._epochs_finetune)
 
-    def _epoch_train(self, model, train_loader, optimizer, scheduler):
+
+    def _epoch_train(self, model, train_loader, optimizer, scheduler, task_begin=None, task_end=None, task_id=None):
         losses = 0.
         losses_lsc, losses_spatial, losses_flat = 0., 0., 0.
         correct, total = 0, 0
@@ -141,7 +143,7 @@ class PODNet(Finetune_IL):
                 fmaps, old_fmaps = [], []
                 for layer_name in self._layer_names:
                     fmaps.append(feature_outputs[layer_name])
-                    old_fmaps.append(old_feature_outputs[layer_name])
+                    old_fmaps.append(old_feature_outputs[layer_name].detach())
                 loss_spacial = pod_spatial_loss(fmaps, old_fmaps) * self.factor * self._lambda_c_base
                 losses_spatial += loss_spacial.item()
                 
@@ -157,7 +159,8 @@ class PODNet(Finetune_IL):
             correct += preds.eq(targets).cpu().sum()
             total += len(targets)
         
-        scheduler.step()
+        if scheduler != None:
+            scheduler.step()
         train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
         train_loss = ['Loss', losses/len(train_loader), 'Loss_lsc', losses_lsc/len(train_loader),
                 'Loss_flat', losses_flat/len(train_loader), 'Loss_spacial', losses_spatial/len(train_loader)]

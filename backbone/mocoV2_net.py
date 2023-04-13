@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import copy
 
 class MoCoNet(nn.Module):
@@ -8,7 +9,7 @@ class MoCoNet(nn.Module):
     Build a MoCo model with: a query encoder, a key encoder, and a queue
     https://arxiv.org/abs/1911.05722
     """
-    def __init__(self, network, dim=128, K=65536, m=0.999, T=0.07):
+    def __init__(self, network_type, network, dim=128, K=65536, m=0.999, T=0.07):
         """
         dim: feature dimension (default: 128)
         K: queue size; number of negative keys (default: 65536)
@@ -20,6 +21,12 @@ class MoCoNet(nn.Module):
         self.K = K
         self.m = m
         self.T = T
+
+        if 'resnet' in network_type:
+            feature_dim = network.fc.in_features
+            network.fc = nn.Sequential(*[nn.Linear(feature_dim, feature_dim), nn.ReLU(), nn.Linear(feature_dim, dim)])
+        else:
+            raise ValueError('{} did not support yet!'.format(network_type))
 
         # create the encoders
         # num_classes is the output fc dimension
@@ -98,4 +105,4 @@ class MoCoNet(nn.Module):
         # dequeue and enqueue
         self._dequeue_and_enqueue(k)
 
-        return logits, labels
+        return F.cross_entropy(logits, labels) 

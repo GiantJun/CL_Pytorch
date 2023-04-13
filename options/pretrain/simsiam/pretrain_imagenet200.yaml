@@ -1,0 +1,64 @@
+######### Basic Settings #########
+basic:
+    device: '6'
+    seed: [1993]
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: pretrain_imagenet200
+    shuffle: true
+
+    # Method Choises: 
+    method: contrastive_pretrain
+    method_type: pretrain
+    mode: simsiam
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: resnet32
+    save_models: true # if true, programm will save model's weights during incremental train
+
+    logger_type: tensorboard
+
+    note: simsiam_seed1993_paper_setting_strongerT
+
+######### Method's Hyperparameters #########
+# special:
+
+
+######### Experiment Settings for Datasets #########
+options:
+    # experiment settings for cifar100
+    pretrain_imagenet200: 
+        resnet32:
+            img_size: 32
+            opt_type: sgd
+            weight_decay: 0.0001
+            epochs: 300 #80
+            lrate: 0.0025 # base_lr * batch_size / 256
+            scheduler: cos
+            batch_size: 256
+            num_workers: 8
+        
+        resnet18_cbam:
+            img_size: 32
+            opt_type: sgd
+            weight_decay: 0.0001
+            epochs: 300 #80
+            lrate: 0.0025 # base_lr * batch_size / 256
+            scheduler: cos
+            batch_size: 256
+            num_workers: 8
+        
+        resnet18:
+            img_size: 224
+            opt_type: sgd
+            weight_decay: 0.0001
+            epochs: 300 #80
+            lrate: 0.05 # base_lr(0.05) * batch_size / 256
+            scheduler: cos
+            batch_size: 256
+            num_workers: 8
+            

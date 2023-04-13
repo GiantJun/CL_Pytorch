@@ -10,6 +10,7 @@ basic:
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: icarl
+    method_type: multi_steps
     # eval_metric Choises: acc, recall
     eval_metric: acc
 
@@ -17,7 +18,7 @@ basic:
     # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
     backbone: resnet32
     pretrained: false
-    save_models: false # if true, programm will save model's weights during incremental train
+    save_models: true # if true, programm will save model's weights during incremental train
 
     ######### Exampler Hyperparameters #########
     memory_size: 2000
@@ -37,6 +38,7 @@ basic:
 ######### Method's Hyperparameters #########
 special:
     incre_type: cil
+    T: 2
 
 ######### Experiment Settings for Datasets #########
 options:
@@ -44,29 +46,24 @@ options:
     cifar100: 
         resnet32:
             opt_type: sgd
-            init_epochs: 200 #200
-            init_lrate: 0.1
-            init_scheduler: multi_step
-            init_milestones: [60,120,170]
-            init_lrate_decay: 0.1
-            init_weight_decay: 0.0005
-
-            epochs: 200 #170
+            epochs: 120 #170
             lrate: 0.1
             scheduler: multi_step
-            milestones: [60,120,170]
-            lrate_decay: 0.1
+            milestones: [49, 63, 90]
+            lrate_decay: 0.2
             batch_size: 128
             weight_decay: 0.0005
             num_workers: 4
 
-            # epochs: 170 #170
-            # lrate: 0.1
-            # scheduler: multi_step
-            # milestones: [49, 63]
-            # lrate_decay: 0.2
-            # batch_size: 128
-            # weight_decay: 0.0005
-            # num_workers: 4
-
-            
+        resnet18:
+            img_size: 224
+            # opt_type: adam
+            opt_type: sgd
+            weight_decay: 0.0005
+            epochs: 200 # 200
+            lrate: 0.01
+            scheduler: multi_step
+            milestones: [70, 130, 170]
+            lrate_decay: 0.1
+            batch_size: 64
+            num_workers: 4

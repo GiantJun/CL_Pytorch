@@ -67,11 +67,9 @@ class Multi_BN_selectT(Finetune_IL):
             self._network = nn.DataParallel(self._network, self._multiple_gpus)
         
         self._train(self.train_loader, self.test_loader)
-        self._memory_bank.store_samplers(data_manager, self._network, range(self._known_classes, self._total_classes))
-        
+
         if len(self._multiple_gpus) > 1:
             self._network = self._network.module
-
 
     def _train(self, train_loader, test_loader):
         self._network.cuda()

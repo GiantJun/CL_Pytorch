@@ -1,0 +1,66 @@
+######### Basic Settings #########
+basic:
+    device: '1'
+    seed: [1993] # icarl 官方代码给的种子是 1993
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: mymedmnist
+    shuffle: true
+
+    # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
+    method: finetune_il
+    method_type: multi_steps
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    # apply_nme: true
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: resnet18
+    pretrained: false
+    save_models: true # if true, programm will save model's weights during incremental train
+
+    ######### Exampler Hyperparameters #########
+    memory_size: 2000
+    fixed_memory: false
+    sampling_method: herding # herding, random, closest_to_mean 
+
+    ######### Task Settings, unimportant in Joint #########
+    # for some datasets(e.g. MedMNist), this will be ignored
+    split_dataset: true
+
+    # note: test
+
+######### Method's Hyperparameters #########
+special:
+    incre_type: cil
+    
+
+######### Experiment Settings for Datasets #########
+options:
+    # experiment settings for cifar100
+    mymedmnist: 
+        resnet32:
+            opt_type: sgd
+            epochs: 2 #170
+            lrate: 0.1
+            scheduler: multi_step
+            milestones: [60,120,170]
+            lrate_decay: 0.1
+            batch_size: 128
+            weight_decay: 0.0005
+            num_workers: 8
+        
+        resnet18:
+            img_size: 224
+            opt_type: adam
+            epochs: 200 # 200
+            lrate: 0.01
+            scheduler: multi_step
+            milestones: [70, 130, 170]
+            lrate_decay: 0.1
+            batch_size: 64
+            num_workers: 4
+            

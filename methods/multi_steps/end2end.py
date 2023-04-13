@@ -22,8 +22,8 @@ class End2End(Finetune_IL):
         if self._incre_type != 'cil':
             raise ValueError('End2End is a class incremental method!')
     
-    def prepare_model(self):
-        super().prepare_model()
+    def prepare_model(self, checkpoint=None):
+        super().prepare_model(checkpoint)
         if self._old_network is not None:
             self._old_network.cuda()
     
@@ -42,7 +42,7 @@ class End2End(Finetune_IL):
         else:
             epochs = self._epochs
         self._is_finetuning = False
-        self._network = self._train_model(self._network, self._train_loader, self._test_loader, optimizer, scheduler, epochs)
+        self._network = self._train_model(self._network, self._train_loader, self._test_loader, optimizer, scheduler, task_id=self._cur_task, epochs=epochs)
 
         if self._cur_task > 0:
             self._logger.info('Finetune the network (classifier part) with the balanced dataset!')
@@ -58,12 +58,10 @@ class End2End(Finetune_IL):
             ft_optimizer = optim.SGD(filter(lambda p: p.requires_grad, self._network.parameters()), momentum=0.9, lr=self._lrate_finetune)
             ft_scheduler = optim.lr_scheduler.MultiStepLR(optimizer=ft_optimizer, milestones=self._milestones_finetune, gamma=self._config.lrate_decay)
             self._is_finetuning = True
-            self._network = self._train_model(self._network, finetune_train_loader, self._test_loader, ft_optimizer, ft_scheduler, 30)
+            self._network = self._train_model(self._network, finetune_train_loader, self._test_loader, ft_optimizer, ft_scheduler, task_id=self._cur_task, epochs=30)
 
         if len(self._multiple_gpus) > 1:
             self._network = self._network.module
-        if self._memory_bank != None:
-            self._memory_bank.store_samplers(self._sampler_dataset, self._network)
 
     def _epoch_train(self, model, train_loader, optimizer, scheduler):
         losses = 0.
@@ -112,7 +110,8 @@ class End2End(Finetune_IL):
             correct += preds.eq(targets).cpu().sum()
             total += len(targets)
         
-        scheduler.step()
+        if scheduler != None:
+            scheduler.step()
         train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
         train_loss = ['Loss', losses/len(train_loader), 'Loss_clf', losses_clf/len(train_loader), 'Loss_kd', losses_kd/len(train_loader)]
         return model, train_acc, train_loss

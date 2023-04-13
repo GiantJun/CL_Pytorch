@@ -10,6 +10,7 @@ basic:
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: lucir
+    method_type: multi_steps
     # eval_metric Choises: acc, recall
     eval_metric: acc
 

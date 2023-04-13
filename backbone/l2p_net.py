@@ -1,18 +1,26 @@
-from typing import Callable
 import torch
 import torch.nn as nn
+import copy
 
-from backbone.inc_net import IncrementalNet
+from backbone.inc_net import get_backbone
 
+class L2PNet(nn.Module):
 
-class L2PNet(IncrementalNet):
-
-    def __init__(self, logger, backbone_type, pretrained, prompt_length=5, embedding_key='cls', prompt_init='uniform',
+    def __init__(self, logger, backbone_type, prompt_length=5, embedding_key='cls', prompt_init='uniform',
             prompt_pool=True, prompt_key=True, pool_size=10, top_k=5, batchwise_prompt=True, prompt_key_init='uniform',
             head_type='prompt', use_prompt_mask=False, global_pool='token', class_token=True):
+        super().__init__()
         assert 'vit' in backbone_type, 'l2p only support vit !'
         assert global_pool in ('', 'avg', 'token')
-        super().__init__(logger, backbone_type, pretrained)
+
+        self._logger = logger
+
+        self.feature_extractor = get_backbone(logger, backbone_type, True)
+        self.feature_extractor.pre_logits = nn.Identity()
+        self.feature_extractor.head = nn.Identity()
+        self.head = None
+
+        self.feature_dim = self.feature_extractor.num_features
         self._head_type = head_type
         self._use_prompt_mask = use_prompt_mask
 
@@ -24,22 +32,30 @@ class L2PNet(IncrementalNet):
                     prompt_init=prompt_init, prompt_pool=prompt_pool, prompt_key=prompt_key, pool_size=pool_size,
                     top_k=top_k, batchwise_prompt=batchwise_prompt, prompt_key_init=prompt_key_init)
 
-        self.num_prefix_tokens = 1 if class_token else 0
-        num_patches = self.feature_extractor.patch_embed.num_patches
-        embed_len = num_patches + self.num_prefix_tokens
-        embed_len += self._prompt.length * self._prompt.top_k
-        self.feature_extractor.pos_embed = nn.Parameter(torch.randn(1, embed_len, self._embed_dim) * .02)
-        
-        model_dict = dict([*self.feature_extractor.named_modules()]) 
-        model_dict['pos_drop'].register_forward_pre_hook(self.apply_prompt())
+        self.num_prefix_tokens = 1 if class_token else 0 # class_token len
+        self.num_prefix_tokens += prompt_length * top_k # the num of added prompt prefix token
 
-    # def apply_prompt(self)-> Callable:
-    #     def hook(module, input):
-    #         if self._use_prompt_mask:
-
-    #     return hook
+        embed_len = self.feature_extractor.patch_embed.num_patches + self.num_prefix_tokens
+        self.prompt_pos_embed = nn.Parameter(torch.randn(1, embed_len, self._embed_dim) * .02, requires_grad=True)
     
-    def extract_features(self, x, task_id=-1, cls_features=None):
+    def update_fc(self, nb_classes):
+        head = nn.Linear(self.feature_dim, nb_classes)
+        if self.head is not None:
+            nb_output = self.head.out_features
+            weight = copy.deepcopy(self.head.weight.data)
+            bias = copy.deepcopy(self.head.bias.data)
+            head.weight.data[:nb_output] = weight
+            head.bias.data[:nb_output] = bias
+            self._logger.info('Updated classifier head output dim from {} to {}'.format(nb_output, nb_classes))
+        else:
+            self._logger.info('Created classifier head with output dim {}'.format(nb_classes))
+        del self.head
+        self.head = head
+
+    def extract_origin_features(self, x):
+        return self.feature_extractor(x)
+
+    def forward(self, x, task_id=-1, cls_features=None):
         x = self.feature_extractor.patch_embed(x)
         if self._use_prompt_mask:
             start = task_id * self._prompt.top_k
@@ -56,16 +72,11 @@ class L2PNet(IncrementalNet):
 
         if self.feature_extractor.cls_token is not None:
             x = torch.cat((self.feature_extractor.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
-        x = self.feature_extractor.pos_drop(x + self.feature_extractor.pos_embed)
+        x = self.feature_extractor.pos_drop(x + self.prompt_pos_embed)
 
         x = self.feature_extractor.blocks(x)
         
         x = self.feature_extractor.norm(x)
-        res['x'] = x
-        return res
-    
-    def forward_head(self, res, pre_logits: bool = False):
-        x = res['x']
         if self._class_token and self._head_type == 'token':
             x = x[:, 0]
         elif self._head_type == 'gap' and self._global_pool == 'avg':
@@ -77,20 +88,10 @@ class L2PNet(IncrementalNet):
             x = x[:, 0:self.total_prompt_len + 1]
             x = x.mean(dim=1)
         else:
-            raise ValueError(f'Invalid classifier={self.classifier}')
+            raise ValueError(f'Invalid classifier head!')
         
         res['pre_logits'] = x
-
-        x = self.fc_norm(x)
-        
-        res['logits'] = self.head(x)
-        
-        return res
-    
-    def forward(self, x, task_id=-1, cls_features=None):
-        res = self.extract_features(x, task_id=task_id, cls_features=cls_features)
-        res = self.forward_head(res)
-        return res
+        return self.head(x), res
 
 class Prompt(nn.Module):
     def __init__(self, length=5, embed_dim=768, embedding_key='mean', prompt_init='uniform', prompt_pool=False, 
@@ -150,13 +151,10 @@ class Prompt(nn.Module):
                 x_embed_mean = torch.max(x_embed, dim=1)[0]
             elif self.embedding_key == 'mean_max':
                 x_embed_mean = torch.max(x_embed, dim=1)[0] + 2 * torch.mean(x_embed, dim=1)
-            elif self.embedding_key == 'cls':
-                if cls_features is None:
-                    x_embed_mean = torch.max(x_embed, dim=1)[0] # B, C
-                else:
-                    x_embed_mean = cls_features
+            elif self.embedding_key == 'cls' and cls_features is not None:
+                x_embed_mean = cls_features
             else:
-                raise NotImplementedError("Not supported way of calculating embedding keys!")
+                raise NotImplementedError("Not supported way '{}' of calculating embedding keys!".format(self.embedding_key))
 
             prompt_norm = self.l2_normalize(self.prompt_key, dim=1) # Pool_size, C
             x_embed_norm = self.l2_normalize(x_embed_mean, dim=1) # B, C
@@ -165,7 +163,7 @@ class Prompt(nn.Module):
             
             if prompt_mask is None:
                 _, idx = torch.topk(similarity, k=self.top_k, dim=1) # B, top_k
-                if self.batchwise_prompt:
+                if self.batchwise_prompt: # use the same topk prompts in the batch
                     prompt_id, id_counts = torch.unique(idx, return_counts=True, sorted=True)
                     # In jnp.unique, when the 'size' is specified and there are fewer than the indicated number of elements,
                     # the remaining elements will be filled with 'fill_value', the default is the minimum value along the specified dimension.

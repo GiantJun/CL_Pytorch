@@ -1,12 +1,12 @@
 import  torch.nn as nn
+import torch.nn.functional as F
 import torch
-from backbone.inc_net import IncrementalNet
 
 class ProjectionMLP(nn.Module):
     def __init__(self, in_dim, mid_dim, out_dim):
         super(ProjectionMLP, self).__init__()
         self.l1 = nn.Sequential(
-            nn.Linear(in_dim, mid_dim),
+            nn.Linear(in_dim, mid_dim, bias=False),
             nn.BatchNorm1d(mid_dim),
             nn.ReLU(inplace=True)
         )
@@ -22,7 +22,7 @@ class ProjectionMLP(nn.Module):
 
     def forward(self, x):
         x = self.l1(x)
-        #x = self.l2(x)
+        x = self.l2(x)
         x = self.l3(x)
 
         return x
@@ -45,19 +45,22 @@ class PredictionMLP(nn.Module):
         return x
 
 
-class SimSiamModel(IncrementalNet):
-
-    def update_fc(self, nb_classes=None):
-        self.projection = ProjectionMLP(self.feature_dim, 2048, 2048)
-        self.prediction = PredictionMLP(2048, 512, 2048)
+class SimSiamNet(nn.Module):
+    def __init__(self, network_type, network, projection_dim=2048, prediction_dim=512):
+        super().__init__()
+        if 'resnet' in network_type:
+            self.feature_dim = network.fc.in_features
+            network.fc = ProjectionMLP(self.feature_dim, projection_dim, projection_dim)
+        else:
+            raise ValueError('{} did not support yet!'.format(network_type))
+        self.encoder = network
+        self.prediction = PredictionMLP(projection_dim, prediction_dim, projection_dim)
 
     def forward(self, x1, x2):
-        x1=self.feature_extractor(x1)
-        z1=self.projection(x1)
+        z1=self.encoder(x1)
         p1=self.prediction(z1)
 
-        with torch.no_grad():
-           x2=self.feature_extractor(x2)
-           z2=self.projection(x2)
+        z2=self.encoder(x2)
+        p2=self.prediction(z2)
 
-        return p1,z2
+        return -(F.cosine_similarity(p1, z2.detach()).mean() + F.cosine_similarity(p2, z1.detach()).mean()) * 0.5

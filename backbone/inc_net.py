@@ -1,12 +1,10 @@
 import copy
-import random
 from typing import Callable, Iterable
 
 import timm.models as timm_models
 import torch
 import torchvision.models as torch_models
 from torch import nn
-from torch.nn import functional as F
 
 from backbone.cifar_resnet import resnet32
 from backbone.cifar_resnet_cbam import resnet18_cbam as resnet18_cbam
@@ -33,25 +31,40 @@ def get_backbone(logger, backbone_type, pretrained=False, pretrain_path=None, no
     elif name == 'resnet18_cbam':
         net = resnet18_cbam(normed=normed)
     elif name in torch_models.__dict__.keys():
+        logger.info('getting model from torch...')
         net = torch_models.__dict__[name](pretrained=pretrained)
+        # for new version of pytorch (after 2022.7)
+        # weights = 'DEFAULT' if pretrained and pretrain_path is None else None
+        # net = torch_models.__dict__[name](weights=weights)
     elif name in timm_models.__dict__.keys():
+        logger.info('getting model from timm...')
         net = timm_models.create_model(backbone_type, pretrained=pretrained)
     else:
         raise NotImplementedError('Unknown type {}'.format(backbone_type))
     logger.info('Created {} !'.format(name))
 
     # 载入自定义预训练模型
-    if pretrain_path != None and pretrained:
+    if pretrain_path is not None and pretrained:
         pretrained_dict = torch.load(pretrain_path)
         if 'state_dict' in pretrained_dict.keys():
-            pretrained_dict = torch.load(pretrain_path)['state_dict']
+            adjusted_dict = {}
+            for key, value in pretrained_dict['state_dict'].items():
+                if 'fc' not in key:
+                    adjusted_dict[key.replace('feature_extractor.', '')] = value
+            pretrained_dict = adjusted_dict
+            # pretrained_dict = pretrained_dict['state_dict']
+        elif 'model' in pretrained_dict.keys():
+            pretrained_dict = pretrained_dict['model'].state_dict()
+
         state_dict = net.state_dict()
-        logger.info('special keys in load model state dict: {}'.format(pretrained_dict.keys()-state_dict.keys()))
+        logger.info('special keys not loaded in pretrain model state dict: {}'.format(pretrained_dict.keys()-state_dict.keys()))
         for key in (pretrained_dict.keys() & state_dict.keys()):
             state_dict[key] = pretrained_dict[key]
         net.load_state_dict(state_dict)
 
         logger.info("loaded pretrained_dict_name: {}".format(pretrain_path))
+    elif pretrained:
+        logger.info("loaded pretrained weights from default")
 
     return net
 
@@ -73,11 +86,20 @@ class IncrementalNet(nn.Module):
         elif 'efficientnet' in backbone_type:
             self._feature_dim = self.feature_extractor.classifier[1].in_features
             self.feature_extractor.classifier = nn.Dropout(p=0.4, inplace=True)
+        elif 'vit' in backbone_type:
+            self._feature_dim = self.feature_extractor.num_features
+            self.feature_extractor.head = nn.Identity()
+        elif 'mobilenet' in backbone_type:
+            self._feature_dim = self.feature_extractor.classifier[-1].in_features
+            self.feature_extractor.classifier = nn.Dropout(p=0.2, inplace=False)
+        elif 'vgg16_bn' in backbone_type:
+            self._feature_dim = self.feature_extractor.classifier[-1].in_features
+            self.feature_extractor.classifier = self.feature_extractor.classifier[:-1]
         else:
             raise ValueError('{} did not support yet!'.format(backbone_type))
-        self._logger.info("Removed original backbone-{}'s fc classifier !".format(backbone_type))
+        self._logger.info("Removed original backbone--{}'s fc classifier !".format(backbone_type))
         self.fc = None
-        self.fc_til = None
+        self.seperate_fc = nn.ModuleList()
         self.output_features = {}
         self.set_hooks()
         
@@ -105,20 +127,20 @@ class IncrementalNet(nn.Module):
 
     def forward(self, x):
         features = self.feature_extractor(x)
-        out = self.fc(features)
         self.output_features['features'] = features
-        if isinstance(out, tuple):
-            self.output_features.update(out[1])
-            out = out[0]
-        return out, self.output_features
-    
-    def forward_til(self, x, task_id):
-        features = self.feature_extractor(x)
-        out = self.fc_til[task_id](features)
-        self.output_features['features'] = features
-        if isinstance(out, tuple):
-            self.output_features.update(out[1])
-            out = out[0]
+        if len(self.seperate_fc) == 0 and self.fc is not None:
+            out = self.fc(features)
+            if isinstance(out, tuple):
+                # for special classifier head which return (Tensor, Dict), e.g. cosineLinear
+                self.output_features.update(out[1])
+                out = out[0]
+        elif len(self.seperate_fc) > 0 and self.fc is None:
+            out = []
+            for task_head in self.seperate_fc:
+                out.append(task_head(features))
+            out = torch.cat(out, dim=-1) # b, total_class
+        else:
+            raise ValueError('Seperate FC or FC should not appear at once')
         return out, self.output_features
 
     def update_fc(self, nb_classes):
@@ -134,37 +156,49 @@ class IncrementalNet(nn.Module):
             self._logger.info('Created classifier head with output dim {}'.format(nb_classes))
         del self.fc
         self.fc = fc
-
-    def update_til_fc(self, nb_classes):
-        if self.fc_til == None:
-            self.fc_til = nn.ModuleList([])
-        self.fc_til.append(self.generate_fc(self.feature_dim, nb_classes))
+    
+    def update_seperate_fc(self, nb_cur_class):
+        self.seperate_fc.append(self.generate_fc(nb_cur_class))
 
     def generate_fc(self, in_dim, out_dim):
-        return SimpleLinear(in_dim, out_dim)
+        return nn.Linear(in_dim, out_dim)
 
     def copy(self):
         """ Warning: this method will reset output_features! """
         self.output_features = {}
         copy_net = copy.deepcopy(self)
-        self._logger.info('Setting copy network hooks...')
+        self._logger.info("Setting copied network's hooks...")
         copy_net.set_hooks()
-        self._logger.info('Reseting current network hooks...')
+        self._logger.info("Reseting current network's hooks...")
         self.set_hooks()
         return copy_net
 
     def freeze_FE(self):
-        for name, param in self.feature_extractor.named_parameters():
+        for param in self.feature_extractor.parameters():
             param.requires_grad = False
-        self.eval()
-        self._logger.info('Freezing feature extractor ...')
+        self.feature_extractor.eval()
+        self._logger.info('Freezing feature extractor(requires_grad=False) ...')
+        return self
+    
+    def activate_FE(self):
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = True
+        self.feature_extractor.train()
+        self._logger.info('Activating feature extractor(requires_grad=True) ...')
         return self
     
     def freeze(self):
-        for name, param in self.named_parameters():
+        for param in self.parameters():
             param.requires_grad = False
         self.eval()
-        self._logger.info('Freezing the whole network ...')
+        self._logger.info('Freezing the whole network(requires_grad=False) ...')
+        return self
+    
+    def activate(self):
+        for param in self.parameters():
+            param.requires_grad = True
+        self.train()
+        self._logger.info('Activating the whole network(requires_grad=True) ...')
         return self
     
     def weight_align(self, increment):
@@ -270,28 +304,27 @@ class IncrementalNetWithBias(IncrementalNet):
 
         return params
 
-    def unfreeze(self):
-        for param in self.parameters():
+    def freeze_bias_layers(self):
+        for param in self.bias_layers.parameters():
+            param.requires_grad = False
+    
+    def activate_bias_layers(self):
+        for param in self.bias_layers.parameters():
             param.requires_grad = True
 
 
 class DERNet(nn.Module):
-    def __init__(self, logger, backbone_type, pretrained):
+    def __init__(self, logger, backbone_type, pretrained, pretrain_path=None):
         super(DERNet,self).__init__()
         self._logger = logger
         self.backbone_type = backbone_type
         self.feature_extractor = nn.ModuleList()
         self.pretrained = pretrained
+        self.pretrain_path = pretrain_path
         self.out_dim = None
         self.fc = None
         self.aux_fc = None
         self.task_sizes = []
-
-    @property
-    def feature_dim(self):
-        if self.out_dim is None:
-            return 0
-        return self.out_dim*len(self.feature_extractor)
 
     def extract_features(self, x):
         features = [fe(x) for fe in self.feature_extractor]
@@ -309,30 +342,42 @@ class DERNet(nn.Module):
         return out, {"aux_logits":aux_logits, "features":all_features}
 
     def update_fc(self, nb_classes):
-        if len(self.feature_extractor)==0:
-            self.feature_extractor.append(get_backbone(self._logger, self.backbone_type))
-            self.out_dim = self.feature_extractor[-1].fc.in_features
-            self.feature_extractor[-1].fc = nn.Identity()
+        new_task_size = nb_classes - sum(self.task_sizes)
+        self.task_sizes.append(new_task_size)
+
+        ft = get_backbone(self._logger, self.backbone_type, pretrained=self.pretrained, pretrain_path=self.pretrain_path)
+        if 'resnet' in self.backbone_type:
+            feature_dim = ft.fc.in_features
+            ft.fc = nn.Identity()
+        elif 'efficientnet' in self.backbone_type:
+            feature_dim = ft.classifier[1].in_features
+            ft.classifier = nn.Dropout(p=0.4, inplace=True)
+        elif 'mobilenet' in self.backbone_type:
+            feature_dim = ft.classifier[-1].in_features
+            ft.classifier = nn.Dropout(p=0.2, inplace=False)
         else:
-            self.feature_extractor.append(get_backbone(self._logger, self.backbone_type))
-            self.feature_extractor[-1].fc = nn.Identity()
+            raise ValueError('{} did not support yet!'.format(self.backbone_type))
+
+        if len(self.feature_extractor)==0:
+            self.feature_extractor.append(ft)
+            self._feature_dim = feature_dim
+        else:
+            self.feature_extractor.append(ft)
             self.feature_extractor[-1].load_state_dict(self.feature_extractor[-2].state_dict())
+        
+        self.aux_fc=self.generate_fc(self._feature_dim, new_task_size+1)
             
-        fc = self.generate_fc(self.feature_dim, nb_classes)
+        fc = self.generate_fc(self._feature_dim*len(self.feature_extractor), nb_classes)
         if self.fc is not None:
             nb_output = self.fc.out_features
             weight = copy.deepcopy(self.fc.weight.data)
             bias = copy.deepcopy(self.fc.bias.data)
-            fc.weight.data[:nb_output,:self.feature_dim-self.out_dim] = weight
+            fc.weight.data[:nb_output,:-self._feature_dim] = weight
             fc.bias.data[:nb_output] = bias
 
         del self.fc
         self.fc = fc
 
-        new_task_size = nb_classes - sum(self.task_sizes)
-        self.task_sizes.append(new_task_size)
-
-        self.aux_fc=self.generate_fc(self.out_dim,new_task_size+1)
 
     def generate_fc(self, in_dim, out_dim):
         # fc = SimpleLinear(in_dim, out_dim)
@@ -356,12 +401,12 @@ class DERNet(nn.Module):
     def reset_fc_parameters(self):
         nn.init.kaiming_uniform_(self.fc.weight, nonlinearity='linear')
         nn.init.constant_(self.fc.bias, 0)
-
+        
 
 class SimpleCosineIncrementalNet(IncrementalNet):
 
     def update_fc(self, nb_classes, nextperiod_initialization):
-        fc = self.generate_fc(self.feature_dim, nb_classes).cuda()
+        fc = self.generate_fc(self.feature_dim, nb_classes)
         if self.fc is not None:
             nb_output = self.fc.out_features
             weight = copy.deepcopy(self.fc.weight.data)

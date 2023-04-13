@@ -11,9 +11,17 @@
             "program": "main.py",
             // "program": "search_param.py",
             "console": "integratedTerminal",
-            "justMyCode": false,
-            // "args": ["--config","options/multi_steps/end2end/cifar100.yaml"]
-            "args": ["--config","options/cur_exp/single_step/cnn_prompt_v1.yaml"]
+            "justMyCode": true,
+            "args": ["--config","options/cur_exp/multi_steps/incremental_adapters_cil_v2_1_ab1/skin8_w_adapter.yaml", "--device", "3"]
+            // "args": ["--config","options/multi_steps/finetune/cifar100_replay.yaml"]
+            // "args": ["--config","options/cur_exp/multi_steps/incremental_adapters_cil_v2_1/skin40_auxOthersFC_minTest_seperateFC.yaml", 
+            //     "--device", "1"]
+            // "args": ["--checkpoint","logs/multi_step/dynamic_er_cil_replay_herding/pathology16/resnet18_bNoneiNone/pretrain_buffer80_lr0.001_ft0.001_order5",
+            //     "--device", "1"]
+            // "args": ["--config","options/cur_exp/multi_steps/incremental_adapters_cil_v2_4/cifar100.yaml"]
+            // "args": ["--config","options/multi_steps/dark_er/dark_er_pp_cifar10.yaml"]
+            // "args": ["--checkpoint", "logs/multi_step/dual_distill_cil_replay_herding/skin8/resnet18_b2i2/no_pretrained_buffer50_lr0.001_20230303_020537",
+            //     "--device", "2"]
         }
     ]
 }

@@ -69,7 +69,8 @@ class EWC(Finetune_IL):
             correct += preds.eq(targets).cpu().sum()
             total += len(targets)
         
-        scheduler.step()
+        if scheduler != None:
+            scheduler.step()
         train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
         train_loss = ['Loss', losses/len(train_loader), 'Loss_clf', losses_clf/len(train_loader), 'Loss_ewc', losses_ewc/len(train_loader)]
         return model, train_acc, train_loss

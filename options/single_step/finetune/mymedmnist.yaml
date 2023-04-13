@@ -1,0 +1,43 @@
+######### Basic Settings #########
+basic:
+    device: '6'
+    seed: [1993]
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: mymedmnist
+    shuffle: true
+
+    # Method Choises: 
+    method: finetune_normal
+    method_type: single_step
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: resnet18_cbam
+    pretrained: false
+    freeze_fe: false
+    save_models: false # if true, programm will save model's weights during incremental train
+
+    note: fine_tune_pretrain
+
+######### Method's Hyperparameters #########
+# special:
+    
+
+######### Experiment Settings for Datasets #########
+options:
+    # experiment settings for cifar100
+    cifar100: 
+        resnet18_cbam:
+            pretrain_path: pretrain_weights/imagenet200_resnet18_cbam_pretrained.pth
+            opt_type: sgd
+            epochs: 100 #80
+            lrate: 0.001
+            scheduler: multi_step
+            milestones: [60,120,160]
+            lrate_decay: 0.1
+            batch_size: 128
+            num_workers: 4

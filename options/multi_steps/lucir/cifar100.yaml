@@ -1,7 +1,7 @@
 ######### Basic Settings #########
 basic:
     device: '6'
-    seed: [30] # icarl 官方代码给的种子是 1993
+    seed: [1993] # icarl 官方代码给的种子是 1993
 
     # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
@@ -10,6 +10,7 @@ basic:
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: lucir
+    method_type: multi_steps
     # eval_metric Choises: acc, recall
     eval_metric: acc
 
@@ -37,9 +38,9 @@ basic:
 special:
     incre_type: cil
     # cifar100
-    lambda_base: 5
-    K: 2
-    margin: 0.5
+    lambda_base: 5 # based on dataset
+    K: 2 # for all experiments
+    margin: 0.5 # for all experiments
     nb_proxy: 1    
 
 ######### Experiment Settings for Datasets #########
@@ -48,7 +49,7 @@ options:
     cifar100: 
         cosine_resnet32:
             opt_type: sgd
-            epochs: 170 #160 #170
+            epochs: 1 #160 #170
             lrate: 0.1
             scheduler: multi_step
             milestones: [80, 120]

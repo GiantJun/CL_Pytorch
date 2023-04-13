@@ -10,6 +10,7 @@ basic:
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: podnet
+    method_type: multi_steps
     # eval_metric Choises: acc, recall
     eval_metric: acc
 
@@ -24,10 +25,12 @@ basic:
     fixed_memory: false
     sampling_method: herding # herding, random, closest_to_mean
 
+    apply_nme: true
+
     ######### Task Settings, unimportant in Joint #########
     # for some datasets(e.g. MedMNist), this will be ignored
     split_dataset: true
-    init_cls: 10
+    init_cls: 50
     increment: 10
 
 

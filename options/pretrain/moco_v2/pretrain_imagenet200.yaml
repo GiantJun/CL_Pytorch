@@ -1,0 +1,72 @@
+######### Basic Settings #########
+basic:
+    device: '6'
+    seed: [1993]
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: pretrain_imagenet200
+    shuffle: true
+
+    # Method Choises: 
+    method: contrastive_pretrain
+    method_type: pretrain
+    mode: moco_v2
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: resnet18
+    save_models: true # if true, programm will save model's weights during incremental train
+
+    logger_type: tensorboard
+
+    note: moco_v2_seed1993_strongerT
+
+######### Method's Hyperparameters #########
+special:
+    m: 0.99
+    T: 0.07
+    K: 4096
+
+######### Experiment Settings for Datasets #########
+options:
+    # experiment settings for cifar100
+    pretrain_imagenet200: 
+        resnet32:
+            img_size: 32
+            opt_type: sgd
+            weight_decay: 0.00001
+            epochs: 300 #80
+            lrate: 0.001
+            scheduler: multi_step
+            milestones: [60,160,260]
+            lrate_decay: 0.1
+            batch_size: 128
+            num_workers: 8
+        
+        resnet18_cbam:
+            img_size: 32
+            opt_type: sgd
+            weight_decay: 0.00001
+            epochs: 300 #80
+            lrate: 0.001
+            scheduler: multi_step
+            milestones: [60,160,260]
+            lrate_decay: 0.1
+            batch_size: 128
+            num_workers: 8
+        
+        resnet18:
+            img_size: 224
+            opt_type: sgd
+            weight_decay: 0.00001
+            epochs: 300 #80
+            lrate: 0.001
+            scheduler: multi_step
+            milestones: [60,160,260]
+            lrate_decay: 0.1
+            batch_size: 128
+            num_workers: 8
+            

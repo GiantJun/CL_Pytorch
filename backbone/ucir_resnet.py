@@ -226,10 +226,11 @@ class ResNet(nn.Module):
         features = torch.flatten(pooled, 1)  # [bs, 512]
         # x = self.fc(x)
 
-        return {
-            'fmaps': [x_1, x_2, x_3, x_4],
-            'features': features
-        }
+        # return {
+        #     'fmaps': [x_1, x_2, x_3, x_4],
+        #     'features': features
+        # }
+        return features
 
     def forward(self, x):
         return self._forward_impl(x)

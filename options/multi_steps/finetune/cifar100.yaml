@@ -1,7 +1,7 @@
 ######### Basic Settings #########
 basic:
-    device: '6'
-    seed: [1993] # icarl 官方代码给的种子是 1993
+    device: '2'
+    seed: [1993, 42, 100] # icarl 官方代码给的种子是 1993
 
     # Dataset Choises: cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
@@ -10,6 +10,7 @@ basic:
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: finetune_il
+    method_type: multi_steps
     incre_type: cil
     # eval_metric Choises: acc, recall
     eval_metric: acc
@@ -25,14 +26,17 @@ basic:
     ######### Task Settings, unimportant in Joint #########
     # for some datasets(e.g. MedMNist), this will be ignored
     split_dataset: true
-    init_cls: 10
-    increment: 10
+    init_cls: 50
+    increment: 50
 
-    test_epoch: 10
+    logger_type: tensorboard
+
+    note: test
+    # test_epoch: 10
 
 ######### Method's Hyperparameters #########
-# special:
-    
+special:
+    incre_type: cil
 
 ######### Experiment Settings for Datasets #########
 options:
@@ -40,19 +44,7 @@ options:
     cifar100: 
         resnet32:
             opt_type: sgd
-            epochs: 1 #80
-            lrate: 0.1
-            scheduler: multi_step
-            milestones: [40, 70]
-            lrate_decay: 0.1
-            batch_size: 128
-            weight_decay: 0.0002
-            num_workers: 8
-        
-    imagenet100:
-        resnet18:
-            opt_type: sgd
-            epochs: 100 #80
+            epochs: 3 #80
             lrate: 0.1
             scheduler: multi_step
             milestones: [40, 70]

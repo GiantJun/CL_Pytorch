@@ -48,11 +48,18 @@ class LUCIR(Finetune_IL):
         if self._incre_type != 'cil':
             raise ValueError('LUCIR is a class incremental method!')
 
-    def prepare_model(self):
+    def prepare_model(self, checkpoint=None):
         if self._network == None:
             self._network = CosineIncrementalNet(self._logger, self._config.backbone, self._config.pretrained, 
                         self._config.pretrain_path, nb_proxy=self._nb_proxy)
         self._network.update_fc(self._total_classes, self._cur_task)
+        
+        if checkpoint is not None:
+            self._network.load_state_dict(checkpoint['state_dict'])
+            if checkpoint['memory_class_means'] is not None and self._memory_bank is not None:
+                self._memory_bank.set_class_means(checkpoint['memory_class_means'])
+            self._logger.info("Loaded checkpoint model's state_dict !")
+
         for name, param in self._network.fc.named_parameters():
             if 'fc1' in name:
                 param.requires_grad = False
@@ -78,7 +85,7 @@ class LUCIR(Finetune_IL):
         self._logger.info('Copying current network!')
         self._old_network = self._network.copy().freeze()
     
-    def _epoch_train(self, model, train_loader, optimizer, scheduler):
+    def _epoch_train(self, model, train_loader, optimizer, scheduler, task_begin=None, task_end=None, task_id=None):
         losses = 0.
         losses_ce, losses_lf, losses_is = 0., 0., 0.
         correct, total = 0, 0
@@ -87,7 +94,7 @@ class LUCIR(Finetune_IL):
             inputs, targets = inputs.cuda(), targets.cuda()
             logits, feature_outputs = model(inputs)
             
-            loss_ce = F.cross_entropy(logits, targets)
+            loss_ce = F.cross_entropy(logits[:,:task_end], targets)
             losses_ce += loss_ce.item()
             if self._old_network == None:
                 loss = loss_ce
@@ -101,14 +108,14 @@ class LUCIR(Finetune_IL):
                 loss = loss_ce + loss_lf
                 
                 # Inter-class speration loss
-                old_classes_mask = np.where(tensor2numpy(targets) < self._known_classes)[0]
+                old_classes_mask = np.where(tensor2numpy(targets) < task_begin)[0]
                 if len(old_classes_mask) != 0:
                     scores = feature_outputs['new_scores'][old_classes_mask] # Scores before scaling  (b, nb_new) => (n, nb_new)
                     old_scores = feature_outputs['old_scores'][old_classes_mask] # Scores before scaling  (b, nb_old) => (n, nb_old)
 
                     # Ground truth targets
                     gt_targets = targets[old_classes_mask] # (n)
-                    old_bool_onehot = target2onehot(gt_targets, self._known_classes).type(torch.bool)
+                    old_bool_onehot = target2onehot(gt_targets, task_begin).type(torch.bool)
                     anchor_positive = torch.masked_select(old_scores, old_bool_onehot)  # (n)
                     anchor_positive = anchor_positive.view(-1, 1).repeat(1, self._K)  # (n, K)
 
@@ -131,7 +138,8 @@ class LUCIR(Finetune_IL):
             correct += preds.eq(targets).cpu().sum()
             total += len(targets)
         
-        scheduler.step()
+        if scheduler != None:
+            scheduler.step()
         train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
         train_loss = ['Loss', losses/len(train_loader), 'Loss_ce', losses_ce/len(train_loader),
                 'Loss_lf', losses_lf/len(train_loader), 'Loss_is', losses_is/len(train_loader)]
