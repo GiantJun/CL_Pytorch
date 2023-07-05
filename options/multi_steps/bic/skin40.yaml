@@ -44,13 +44,17 @@ options:
     skin40: 
         resnet18:
             img_size: 224
-            opt_type: sgd
-            weight_decay: 0.0005
+
             epochs: 200 #200
+            batch_size: 32
+            num_workers: 4
+
+            opt_type: sgd
             lrate: 0.01
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [60,120,170]
             lrate_decay: 0.1
-            batch_size: 32
-            num_workers: 4
             

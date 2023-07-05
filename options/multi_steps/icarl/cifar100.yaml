@@ -18,7 +18,7 @@ basic:
     # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
     backbone: resnet32
     pretrained: false
-    save_models: true # if true, programm will save model's weights during incremental train
+    save_models: false # if true, programm will save model's weights during incremental train
 
     ######### Exampler Hyperparameters #########
     memory_size: 2000
@@ -33,7 +33,7 @@ basic:
     init_cls: 10
     increment: 10
     
-    # test_epoch: 10
+    note: test
 
 ######### Method's Hyperparameters #########
 special:
@@ -45,25 +45,15 @@ options:
     # experiment settings for cifar100
     cifar100: 
         resnet32:
-            opt_type: sgd
             epochs: 120 #170
+            batch_size: 128
+            num_workers: 4
+            
+            opt_type: sgd
             lrate: 0.1
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [49, 63, 90]
             lrate_decay: 0.2
-            batch_size: 128
-            weight_decay: 0.0005
-            num_workers: 4
-
-        resnet18:
-            img_size: 224
-            # opt_type: adam
-            opt_type: sgd
-            weight_decay: 0.0005
-            epochs: 200 # 200
-            lrate: 0.01
-            scheduler: multi_step
-            milestones: [70, 130, 170]
-            lrate_decay: 0.1
-            batch_size: 64
-            num_workers: 4

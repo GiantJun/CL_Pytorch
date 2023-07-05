@@ -43,24 +43,30 @@ options:
     # experiment settings for cifar100
     mymedmnist: 
         resnet32:
-            opt_type: sgd
             epochs: 2 #170
+            batch_size: 128
+            num_workers: 8
+
+            opt_type: sgd
             lrate: 0.1
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [60,120,170]
             lrate_decay: 0.1
-            batch_size: 128
-            weight_decay: 0.0005
-            num_workers: 8
-        
+            
         resnet18:
             img_size: 224
-            opt_type: adam
+
             epochs: 200 # 200
+            batch_size: 64
+            num_workers: 4
+            
+            opt_type: adam
             lrate: 0.01
+            
             scheduler: multi_step
             milestones: [70, 130, 170]
             lrate_decay: 0.1
-            batch_size: 64
-            num_workers: 4
             

@@ -1,5 +1,6 @@
 import logging
 import os
+from argparse import ArgumentParser
 
 import torch
 import torch.nn as nn
@@ -12,6 +13,11 @@ from backbone.simsiam_net import SimSiamNet
 from methods.single_step.finetune_normal import Finetune_normal
 from utils.toolkit import count_parameters
 
+def add_special_args(parser: ArgumentParser) -> ArgumentParser:
+    parser.add_argument('--m', type=float, default=None, help='momenton rate for momenton encoder')
+    parser.add_argument('--T', type=float, default=None, help='tempreture apply to the output logits befor softmax')
+    parser.add_argument('--K', type=int, default=None, help='K for lucir / memory bank size for moco / component for gmm_bayes')
+    return parser
 
 class Contrastive_Pretrain(Finetune_normal):
     def __init__(self, logger, config):

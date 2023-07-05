@@ -42,20 +42,10 @@ options:
     # experiment settings for cifar100
     cifar100: 
         resnet32:
-            opt_type: sgd
-            weight_decay: 0.0
             epochs: 1
-            lrate: 0.01
             batch_size: 10
             num_workers: 4
-
-            # epochs: 170 #170
-            # lrate: 0.1
-            # scheduler: multi_step
-            # milestones: [49, 63]
-            # lrate_decay: 0.2
-            # batch_size: 128
-            # weight_decay: 0.0005
-            # num_workers: 4
-
+            
+            opt_type: sgd
+            lrate: 0.01
             

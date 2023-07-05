@@ -16,7 +16,7 @@ basic:
 
     # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
     # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
-    backbone: resnet18
+    backbone: resnet32
     pretrained: false
     save_models: true # if true, programm will save model's weights during incremental train
 
@@ -42,27 +42,21 @@ special:
 ######### Experiment Settings for Datasets #########
 options:
     # experiment settings for cifar100
-    cifar100: 
-        resnet18:
-            img_size: 224
-            opt_type: sgd
-            epochs: 200 # 170
-            lrate: 0.01
-            scheduler: multi_step
-            milestones: [60, 120, 180]
-            lrate_decay: 0.1
-            batch_size: 128
-            weight_decay: 0.0002
-            num_workers: 4
-        
+    cifar100:         
         resnet32:
-            opt_type: sgd
-            epochs: 200 # 170
-            lrate: 0.1
-            scheduler: multi_step
-            milestones: [60, 120, 180]
-            lrate_decay: 0.1
+            epochs: 250
             batch_size: 128
-            weight_decay: 0.0002
             num_workers: 4
+
+            opt_type: sgd
+            lrate: 0.05 # 0.1
+            weight_decay: 0.0002
+            opt_mom: 0.9
+
+            scheduler: multi_step
+            milestones: [100, 150, 200]
+            lrate_decay: 0.1
+    
+            
+            
             

@@ -18,16 +18,24 @@ class MyMedMnist(iData):
         # 由于 MedMnist 中有些子数据集是多标签或者是3D的，这里没有使用
         # 以下表示中，字符为子数据集名字, 数字为子数据集中包含的类别数
         self.has_valid = True
-        self._dataset_info = [('bloodmnist',8), ('organamnist',11), ('dermamnist',7), ('pneumoniamnist',2), ('pathmnist',9),
-                            ('breastmnist',2), ('tissuemnist',8), ('octmnist',4)]
+        self._dataset_info = [('bloodmnist',8), ('organmnist_axial',11), ('pathmnist',9), ('tissuemnist',8)]
+        # self._dataset_info = [('bloodmnist',8), ('organamnist',11), ('dermamnist',7), ('pneumoniamnist',2), ('pathmnist',9),
+        #                     ('breastmnist',2), ('tissuemnist',8), ('octmnist',4)]
         self.use_path = False
-        self.img_size = img_size if img_size != None else 32 # original img size is 28
+        self.img_size = img_size if img_size != None else 28 # original img size is 28
         self.train_trsf = [
             transforms.RandomCrop(32,padding=4),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ColorJitter(brightness=0.24705882352941178),
-            ]
-        
+            # transforms.ColorJitter(brightness=0.24705882352941178),
+        ]
+        self.strong_trsf = [
+            transforms.RandomResizedCrop(size=28, scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            # transforms.RandomGrayscale(p=0.2),
+        ]
         self.test_trsf = []
         self.common_trsf = [
             transforms.Resize((self.img_size, self.img_size)),
@@ -67,9 +75,11 @@ class MyMedMnist(iData):
                 test_imgs = np.repeat(test_imgs, 3, axis=3)
 
             train_labels = train_labels + known_class
+            train_imgs = train_imgs.astype(np.uint8)
             train_labels = train_labels.astype(np.uint8)
 
             test_labels = test_labels + known_class
+            test_imgs = test_imgs.astype(np.uint8)
             test_labels = test_labels.astype(np.uint8)
             
             train_data = np.concatenate([train_data, train_imgs]) if len(train_data) != 0 else train_imgs
@@ -89,7 +99,7 @@ class MyMedMnist(iData):
         # mymedmnist_1_in_5: 对不均衡的 PathMNIST,OCTMNIST, TissueMNIST, OrganAMNIST, 将其随机下采样为其原来的1/5, 其余不变
         # mymedmnist_1000_300: 对所有子数据集, 均随机采样成样本数分别为 1000,300 的训练集和测试集
         # origin: MedMNIST 原始数据集
-        src_dir = os.path.join(os.environ["MYDATASETS"], "mymedmnist", "mymedmnist_1_in_5")
+        src_dir = os.path.join(os.environ["DATA"], "medmnist")
         self.train_data, self.train_targets, self.test_data, self.test_targets = self.getdata(src_dir)
         # print(self.train_data.shape)
         # print(self.test_data.shape)

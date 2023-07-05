@@ -33,11 +33,17 @@ options:
     cifar100: 
         resnet18_cbam:
             pretrain_path: pretrain_weights/imagenet200_resnet18_cbam_pretrained.pth
-            opt_type: sgd
+
             epochs: 100 #80
+            batch_size: 128
+            num_workers: 4
+            
+            opt_type: sgd
             lrate: 0.001
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [60,120,160]
             lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 4
+            

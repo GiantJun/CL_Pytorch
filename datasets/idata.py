@@ -1,5 +1,6 @@
 class iData(object):
     train_trsf = []
+    strong_trsf = []
     test_trsf = []
     common_trsf = []
     class_order = None

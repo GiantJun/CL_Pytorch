@@ -36,37 +36,33 @@ options:
     pretrain_imagenet200: 
         resnet32:
             img_size: 32
-            opt_type: sgd
-            weight_decay: 0.00001
+
             epochs: 300 #80
+            batch_size: 128
+            num_workers: 8
+
+            opt_type: sgd
             lrate: 0.001
+            weight_decay: 0.00001
+            opt_mom: 0.9
+                        
             scheduler: multi_step
             milestones: [60,160,260]
             lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 8
-        
-        resnet18_cbam:
-            img_size: 32
-            opt_type: sgd
-            weight_decay: 0.00001
-            epochs: 300 #80
-            lrate: 0.001
-            scheduler: multi_step
-            milestones: [60,160,260]
-            lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 8
         
         resnet18:
             img_size: 224
-            opt_type: sgd
-            weight_decay: 0.00001
+
             epochs: 300 #80
+            batch_size: 128
+            num_workers: 8
+
+            opt_type: sgd
             lrate: 0.001
+            weight_decay: 0.00001
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [60,160,260]
             lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 8
             

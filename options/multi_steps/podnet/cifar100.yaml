@@ -46,17 +46,23 @@ options:
     # experiment settings for cifar100
     cifar100: 
         cosine_resnet32:
-            opt_type: sgd
-            scheduler: cos
+            layer_names: ['stage_1', 'stage_2', 'stage_3']
+            
             epochs: 160 # 160
-            lrate: 0.1
             batch_size: 128
+            num_workers: 4
+
+            opt_type: sgd
+            lrate: 0.1
             weight_decay: 0.0005
+            opt_mom: 0.9
+
+            scheduler: cos
             
             epochs_finetune: 20
             lrate_finetune: 0.005
 
-            layer_names: ['stage_1', 'stage_2', 'stage_3']
+            
 
-            num_workers: 4
+            
             

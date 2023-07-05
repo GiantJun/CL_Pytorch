@@ -1,7 +1,7 @@
 ######### Basic Settings #########
 basic:
     device: '2'
-    seed: [1993, 42, 100] # icarl 官方代码给的种子是 1993
+    seed: [1993] # icarl 官方代码给的种子是 1993
 
     # Dataset Choises: cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
@@ -26,11 +26,12 @@ basic:
     ######### Task Settings, unimportant in Joint #########
     # for some datasets(e.g. MedMNist), this will be ignored
     split_dataset: true
-    init_cls: 50
-    increment: 50
+    init_cls: 10
+    increment: 10
 
     logger_type: tensorboard
 
+    # save_pred_record: true
     note: test
     # test_epoch: 10
 
@@ -43,14 +44,16 @@ options:
     # experiment settings for cifar100
     cifar100: 
         resnet32:
+            epochs: 1 #80
+            batch_size: 128
+            num_workers: 8
+
             opt_type: sgd
-            epochs: 3 #80
             lrate: 0.1
+            weight_decay: 0.0002
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [40, 70]
             lrate_decay: 0.1
-            batch_size: 128
-            weight_decay: 0.0002
-            num_workers: 8
-
             

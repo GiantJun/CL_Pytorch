@@ -18,6 +18,14 @@ class ImageNet100(iData):
             transforms.RandomApply([myTransforms.GaussianBlur([.1, 2.])], p=0.5),
             transforms.RandomHorizontalFlip(),
         ]
+        self.strong_trsf = [
+            transforms.RandomResizedCrop(size=224, scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+        ]
         self.test_trsf = [
             transforms.Resize((256,256)), # 256
             transforms.CenterCrop(224), # 224
@@ -49,4 +57,4 @@ class ImageNet100(iData):
         root_dir = os.path.join(os.environ['DATA'], 'miniImageNet')
 
         self.train_data, self.train_targets = self.getdata(root_dir, 'train.txt')
-        self.test_data, self.test_targets = self.getdata(root_dir, 'test.txt')
+        self.test_data, self.test_targets = self.getdata(root_dir, 'val.txt')

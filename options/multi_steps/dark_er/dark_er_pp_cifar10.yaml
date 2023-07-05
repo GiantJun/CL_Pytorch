@@ -1,12 +1,12 @@
 ######### Basic Settings #########
 basic:
-    device: '1'
+    device: '0'
     seed: [1993] # icarl 官方代码给的种子是 1993
 
     # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
     dataset: cifar10
-    shuffle: true
+    shuffle: false
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: dark_er
@@ -15,9 +15,9 @@ basic:
     eval_metric: acc
 
     # Backbone Choises: resnet18
-    backbone: resnet32
+    backbone: resnet18_cifar
     pretrained: false # false
-    save_models: true # if true, programm will save model's weights during incremental train
+    save_models: false # if true, programm will save model's weights during incremental train
 
     ######### Exampler Hyperparameters #########
     memory_size: 200
@@ -29,26 +29,25 @@ basic:
     split_dataset: true
     init_cls: 2
     increment: 2
-    
+
+    note: alpha0.5_beta1_lr0.03
+    # test_epoch: 40
+
 ######### Method's Hyperparameters #########
 special:
     incre_type: cil
-    alpha: 0.1
-    beta: 0.5
+    alpha: 0.1 # 0.1
+    beta: 0.5 # 0.7
 
 ######### Experiment Settings for Datasets #########
 options:
     # experiment settings for cifar100
     cifar10: 
-        resnet32:
-            img_size: 32
-            opt_type: sgd
+        resnet18_cifar:    
             epochs: 50 # 50
-            lrate: 0.03
-            scheduler: multi_step
-            milestones: [40, 80]
-            lrate_decay: 0.1
-            weight_decay: 0.0005
             batch_size: 32
             num_workers: 4
-            
+                    
+            opt_type: sgd
+            lrate: 0.03
+            weight_decay: 0

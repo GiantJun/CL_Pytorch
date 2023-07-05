@@ -7,6 +7,7 @@ import torchvision.models as torch_models
 from torch import nn
 
 from backbone.cifar_resnet import resnet32
+from backbone.cifar_resnet import resnet18 as resnet18_cifar
 from backbone.cifar_resnet_cbam import resnet18_cbam as resnet18_cbam
 from backbone.linears import CosineLinear, SimpleLinear, SplitCosineLinear
 from backbone.ucir_cifar_resnet import resnet32 as cosine_resnet32
@@ -20,6 +21,16 @@ def get_backbone(logger, backbone_type, pretrained=False, pretrain_path=None, no
     net = None
     if name == 'resnet32':
         net = resnet32()
+    elif name == 'resnet18_cifar':
+        # ### resnet18 for cifar, version for dynamic_er
+        # logger.info('getting model from torch...')
+        # real_name = name.replace('_cifar', '')
+        # weights = 'DEFAULT' if pretrained and pretrain_path is None else None
+        # net = torch_models.__dict__[real_name](weights=weights)
+        # net.maxpool = nn.Identity()
+        # net.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        assert pretrained is False, 'resnet18_cifar has no pretrain weights !'
+        net = resnet18_cifar()
     elif name == 'cosine_resnet18':
         net = cosine_resnet18(pretrained=pretrained)
     elif name == 'cosine_resnet32':
@@ -32,10 +43,10 @@ def get_backbone(logger, backbone_type, pretrained=False, pretrain_path=None, no
         net = resnet18_cbam(normed=normed)
     elif name in torch_models.__dict__.keys():
         logger.info('getting model from torch...')
-        net = torch_models.__dict__[name](pretrained=pretrained)
+        # net = torch_models.__dict__[name](pretrained=pretrained)
         # for new version of pytorch (after 2022.7)
-        # weights = 'DEFAULT' if pretrained and pretrain_path is None else None
-        # net = torch_models.__dict__[name](weights=weights)
+        weights = 'DEFAULT' if pretrained and pretrain_path is None else None
+        net = torch_models.__dict__[name](weights=weights)
     elif name in timm_models.__dict__.keys():
         logger.info('getting model from timm...')
         net = timm_models.create_model(backbone_type, pretrained=pretrained)
@@ -71,14 +82,13 @@ def get_backbone(logger, backbone_type, pretrained=False, pretrain_path=None, no
 
 class IncrementalNet(nn.Module):
 
-    def __init__(self, logger, backbone_type, pretrained, pretrain_path=None, layer_names: Iterable[str]=[], use_MLP=False):
+    def __init__(self, logger, backbone_type, pretrained, pretrain_path=None, layer_names: Iterable[str]=[], MLP_projector=False):
         super(IncrementalNet, self).__init__()
         '''
         layers_name can be ['conv1','layer1','layer2','layer3','layer4']
         '''
         self._logger = logger
         self.feature_extractor = get_backbone(self._logger, backbone_type, pretrained, pretrain_path)
-        self._use_MLP = use_MLP
         self._layer_names = layer_names
         if 'resnet' in backbone_type:
             self._feature_dim = self.feature_extractor.fc.in_features
@@ -99,8 +109,14 @@ class IncrementalNet(nn.Module):
             raise ValueError('{} did not support yet!'.format(backbone_type))
         self._logger.info("Removed original backbone--{}'s fc classifier !".format(backbone_type))
         self.fc = None
+        if MLP_projector:
+            self.MLP_projector = nn.Sequential(nn.Linear(self._feature_dim, self._feature_dim),
+                                            nn.ReLU(), nn.Linear(self._feature_dim, self._feature_dim))
+        else:
+            self.MLP_projector = nn.Identity()
         self.seperate_fc = nn.ModuleList()
         self.output_features = {}
+        self.task_sizes = []
         self.set_hooks()
         
     def set_hooks(self):
@@ -127,6 +143,7 @@ class IncrementalNet(nn.Module):
 
     def forward(self, x):
         features = self.feature_extractor(x)
+        features = self.MLP_projector(features)
         self.output_features['features'] = features
         if len(self.seperate_fc) == 0 and self.fc is not None:
             out = self.fc(features)
@@ -139,11 +156,14 @@ class IncrementalNet(nn.Module):
             for task_head in self.seperate_fc:
                 out.append(task_head(features))
             out = torch.cat(out, dim=-1) # b, total_class
+        elif len(self.seperate_fc) == 0 and self.fc is None:
+            out = features    # for methods that do not need fc
         else:
             raise ValueError('Seperate FC or FC should not appear at once')
         return out, self.output_features
 
     def update_fc(self, nb_classes):
+        self.task_sizes.append(nb_classes - sum(self.task_sizes))
         fc = self.generate_fc(self.feature_dim, nb_classes)
         if self.fc is not None:
             nb_output = self.fc.out_features
@@ -158,7 +178,8 @@ class IncrementalNet(nn.Module):
         self.fc = fc
     
     def update_seperate_fc(self, nb_cur_class):
-        self.seperate_fc.append(self.generate_fc(nb_cur_class))
+        self.task_sizes.append(nb_cur_class)
+        self.seperate_fc.append(self.generate_fc(self.feature_dim, nb_cur_class))
 
     def generate_fc(self, in_dim, out_dim):
         return nn.Linear(in_dim, out_dim)
@@ -210,6 +231,10 @@ class IncrementalNet(nn.Module):
         gamma = meanold/meannew
         print('alignweights,gamma=',gamma)
         self.fc.weight.data[-increment:,:] *= gamma
+    
+    def reset_fc_parameters(self):
+        nn.init.kaiming_uniform_(self.fc.weight, nonlinearity='linear')
+        nn.init.constant_(self.fc.bias, 0)
 
 
 class CosineIncrementalNet(IncrementalNet):
@@ -310,98 +335,7 @@ class IncrementalNetWithBias(IncrementalNet):
     
     def activate_bias_layers(self):
         for param in self.bias_layers.parameters():
-            param.requires_grad = True
-
-
-class DERNet(nn.Module):
-    def __init__(self, logger, backbone_type, pretrained, pretrain_path=None):
-        super(DERNet,self).__init__()
-        self._logger = logger
-        self.backbone_type = backbone_type
-        self.feature_extractor = nn.ModuleList()
-        self.pretrained = pretrained
-        self.pretrain_path = pretrain_path
-        self.out_dim = None
-        self.fc = None
-        self.aux_fc = None
-        self.task_sizes = []
-
-    def extract_features(self, x):
-        features = [fe(x) for fe in self.feature_extractor]
-        features = torch.cat(features, 1)
-        return features
-
-    def forward(self, x):
-        features = [fe(x) for fe in self.feature_extractor]
-        all_features = torch.cat(features, 1)
-
-        out=self.fc(all_features) #{logics: self.fc(features)}
-
-        aux_logits=self.aux_fc(features[-1])
-
-        return out, {"aux_logits":aux_logits, "features":all_features}
-
-    def update_fc(self, nb_classes):
-        new_task_size = nb_classes - sum(self.task_sizes)
-        self.task_sizes.append(new_task_size)
-
-        ft = get_backbone(self._logger, self.backbone_type, pretrained=self.pretrained, pretrain_path=self.pretrain_path)
-        if 'resnet' in self.backbone_type:
-            feature_dim = ft.fc.in_features
-            ft.fc = nn.Identity()
-        elif 'efficientnet' in self.backbone_type:
-            feature_dim = ft.classifier[1].in_features
-            ft.classifier = nn.Dropout(p=0.4, inplace=True)
-        elif 'mobilenet' in self.backbone_type:
-            feature_dim = ft.classifier[-1].in_features
-            ft.classifier = nn.Dropout(p=0.2, inplace=False)
-        else:
-            raise ValueError('{} did not support yet!'.format(self.backbone_type))
-
-        if len(self.feature_extractor)==0:
-            self.feature_extractor.append(ft)
-            self._feature_dim = feature_dim
-        else:
-            self.feature_extractor.append(ft)
-            self.feature_extractor[-1].load_state_dict(self.feature_extractor[-2].state_dict())
-        
-        self.aux_fc=self.generate_fc(self._feature_dim, new_task_size+1)
-            
-        fc = self.generate_fc(self._feature_dim*len(self.feature_extractor), nb_classes)
-        if self.fc is not None:
-            nb_output = self.fc.out_features
-            weight = copy.deepcopy(self.fc.weight.data)
-            bias = copy.deepcopy(self.fc.bias.data)
-            fc.weight.data[:nb_output,:-self._feature_dim] = weight
-            fc.bias.data[:nb_output] = bias
-
-        del self.fc
-        self.fc = fc
-
-
-    def generate_fc(self, in_dim, out_dim):
-        # fc = SimpleLinear(in_dim, out_dim)
-        fc = nn.Linear(in_dim, out_dim)
-        return fc
-
-    def copy(self):
-        return copy.deepcopy(self)
-
-    def freeze(self):
-        for param in self.parameters():
-            param.requires_grad = False
-        self.eval()
-        return self
-
-    def freeze_feature_extractor(self):
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
-        self.feature_extractor.eval()
-
-    def reset_fc_parameters(self):
-        nn.init.kaiming_uniform_(self.fc.weight, nonlinearity='linear')
-        nn.init.constant_(self.fc.bias, 0)
-        
+            param.requires_grad = True       
 
 class SimpleCosineIncrementalNet(IncrementalNet):
 

@@ -29,6 +29,7 @@ class WA(Finetune_IL):
         super().__init__(logger, config)
         self._T = config.T
         self._old_network = None
+        self._kd_lamda = None
         if self._incre_type != 'cil':
             raise ValueError('WA is a class incremental method!')
 
@@ -41,8 +42,8 @@ class WA(Finetune_IL):
         super().after_task()
         self._old_network = self._network.copy().freeze()
 
-
     def incremental_train(self):
+        self._kd_lamda = self._known_classes / self._total_classes
         super().incremental_train()
         if self._cur_task > 0:
             self._network.weight_align(self._total_classes-self._known_classes)
@@ -56,14 +57,13 @@ class WA(Finetune_IL):
             inputs, targets = inputs.cuda(), targets.cuda()
             logits, feature_outputs = model(inputs)
             
-            loss_clf = F.cross_entropy(logits[:,:task_end], targets)
+            loss_clf = F.cross_entropy(logits[:,:task_end], targets) * (1-self._kd_lamda)
+            loss = loss_clf
             losses_clf += loss_clf.item()
-            if self._old_network == None:
-                loss = loss_clf
-            else:
-                loss_kd = self._KD_loss(logits[:,:task_begin],self._old_network(inputs)[0],self._T)
+            if self._old_network is not None:
+                loss_kd = self._KD_loss(logits[:,:task_begin],self._old_network(inputs)[0],self._T) * self._kd_lamda
+                loss += loss_kd
                 losses_kd += loss_kd.item()
-                loss = loss_clf + loss_kd
 
             preds = torch.max(logits, dim=1)[1]
     

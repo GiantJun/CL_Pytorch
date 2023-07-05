@@ -1,11 +1,16 @@
 import numpy as np
 import torch
+from argparse import ArgumentParser
 from torch.nn.functional import binary_cross_entropy_with_logits, cross_entropy
 
 from methods.multi_steps.finetune_il import Finetune_IL
 from utils.toolkit import target2onehot, tensor2numpy
 
 EPSILON = 1e-8
+
+def add_special_args(parser: ArgumentParser) -> ArgumentParser:
+    parser.add_argument('--T', type=float, default=None, help='tempreture apply to the output logits befor softmax')
+    return parser
 
 class iCaRL(Finetune_IL):
 

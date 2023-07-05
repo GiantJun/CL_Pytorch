@@ -1,7 +1,7 @@
 ######### Basic Settings #########
 basic:
     device: '6'
-    seed: [3407]
+    seed: [1993]
 
     # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
@@ -32,24 +32,30 @@ options:
     cifar10: 
         resnet18:
             img_size: 224
-            opt_type: sgd
+
             epochs: 200 # 170
+            batch_size: 64
+            num_workers: 4
+
+            opt_type: sgd
             lrate: 0.01
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [70, 130, 170]
             lrate_decay: 0.1
-            weight_decay: 0.0005
-            batch_size: 128
+            
+        resnet32:
+            epochs: 100 #80
+            batch_size: 64
             num_workers: 4
-
-        resnet18_cbam:
-            pretrain_path: pretrain_weights/imagenet200_resnet18_cbam_pretrained.pth
-            opt_type: adam
-            epochs: 200 #80
+            
+            opt_type: sgd
             lrate: 0.001
+            weight_decay: 0.0005
+            
             scheduler: multi_step
-            milestones: [60,120,160]
+            milestones: [45, 90]
             lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 8
-        
+                    

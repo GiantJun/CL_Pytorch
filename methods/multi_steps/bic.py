@@ -3,6 +3,7 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
+from argparse import ArgumentParser
 
 from backbone.inc_net import IncrementalNetWithBias
 from methods.multi_steps.finetune_il import Finetune_IL
@@ -18,6 +19,10 @@ from utils.toolkit import count_parameters, tensor2numpy
 # weight_decay = 2e-4
 # num_workers = 8
 
+def add_special_args(parser: ArgumentParser) -> ArgumentParser:
+    parser.add_argument('--T', type=float, default=None, help='tempreture apply to the output logits befor softmax')
+    parser.add_argument('--split_ratio', type=float, default=None, help='split ratio for bic')
+    return parser
 
 class BiC(Finetune_IL):
     def __init__(self, logger, config):

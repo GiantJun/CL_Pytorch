@@ -2,8 +2,8 @@ import torch.nn.functional as F
 import numpy as np
 from torch.utils.data import DataLoader, Subset
 import torch
+from torchvision import transforms
 from utils.toolkit import DummyDataset, pil_loader
-import copy
 from PIL import Image
 
 EPSILON = 1e-8
@@ -48,6 +48,7 @@ class ReplayBank:
 
         self._data_memory = np.array([])
         self._targets_memory = np.array([])
+        self._soft_targets_memory = np.array([])
         self._class_sampler_info = [] # 列表中保存了每个类实际保存的样本数
 
         self._class_means = []
@@ -56,6 +57,9 @@ class ReplayBank:
     @property
     def sample_per_class(self):
         return self._memory_per_class
+
+    def is_empty(self):
+        return len(self._data_memory) == 0
 
     def get_class_means(self):
         return self._class_means
@@ -94,7 +98,7 @@ class ReplayBank:
             idx_dataset = Subset(dataset, class_data_idx)
             idx_loader = DataLoader(idx_dataset, batch_size=self._batch_size, shuffle=False, num_workers=self._num_workers)
             idx_vectors, idx_logits = self._extract_vectors(model, idx_loader)
-            selected_idx = self.select_sample_indices(idx_vectors, per_class)
+            selected_idx = self.select_sample_indices(self._sampling_method, idx_vectors, per_class)
             self._logger.info("New Class {} instance will be stored: {} => {}".format(class_idx, len(idx_targets), len(selected_idx)))
             
             # to reduce calculation when applying replayBank (expecially for some methods do not apply nme)
@@ -138,7 +142,7 @@ class ReplayBank:
         return torch.stack(class_means, dim=0) if len(class_means) > 0 else None
 
     def reduce_memory(self, m):
-        data_mamory, targets_memory = [], []
+        data_mamory, targets_memory, soft_targets_memory = [], [], []
         for i in range(len(self._class_sampler_info)):
             if self._class_sampler_info[i] > m:
                 store_sample_size = m
@@ -147,13 +151,19 @@ class ReplayBank:
                 store_sample_size = self._class_sampler_info[i]
             
             self._logger.info("Old class {} storage will be reduced: {} => {}".format(i, self._class_sampler_info[i], store_sample_size))
+            
             mask = np.where(self._targets_memory == i)[0]
             data_mamory.append(self._data_memory[mask[:store_sample_size]])
             targets_memory.append(self._targets_memory[mask[:store_sample_size]])
+            if len(self._soft_targets_memory) > 0:
+                soft_targets_memory.append(self._soft_targets_memory[mask[:store_sample_size]])
+            
             self._class_sampler_info[i] = store_sample_size
             # self._logger.info("类别 {} 存储样本数为: {}".format(i, len(self._data_memory[i])))
         self._data_memory = np.concatenate(data_mamory)
         self._targets_memory = np.concatenate(targets_memory)
+        if len(soft_targets_memory) > 0:
+            self._soft_targets_memory = np.concatenate(soft_targets_memory)
 
     def KNN_classify(self, vectors=None, model=None, loader=None, ret_logits=False):
         assert self._apply_nme, 'if apply_nme=False, you should not apply KNN_classify!'
@@ -186,18 +196,16 @@ class ReplayBank:
     
     def get_unified_sample_dataset(self, new_task_dataset:DummyDataset, model):
         """dataset 's transform should be in train mode!"""
-        class_range = np.unique(new_task_dataset.targets)
-        if self._fixed_memory:
-            per_class = self._memory_per_class
-        else:
-            per_class = self._memory_size // len(self._class_sampler_info)
-        self._logger.info('Getting unified samples from old and new classes, {} samples for each class (replay {} old classes)'.format(per_class, len(self._class_sampler_info)))
-
         balanced_data = []
         balanced_targets = []
-        
-        balanced_data.append(self._data_memory)
-        balanced_targets.append(self._targets_memory)
+        class_range = np.unique(new_task_dataset.targets)
+        if len(self._data_memory) > 0:
+            per_class = self._memory_per_class
+            balanced_data.append(self._data_memory)
+            balanced_targets.append(self._targets_memory)
+        else:
+            per_class = self._memory_size // len(class_range)
+        self._logger.info('Getting unified samples from old and new classes, {} samples for each class (replay {} old classes)'.format(per_class, len(self._class_sampler_info)))
 
         # balanced new task data and targets
         for class_idx in class_range:
@@ -208,7 +216,7 @@ class ReplayBank:
             idx_dataset = Subset(new_task_dataset, class_data_idx)
             idx_loader = DataLoader(idx_dataset, batch_size=self._batch_size, shuffle=False, num_workers=self._num_workers)
             idx_vectors, idx_logits = self._extract_vectors(model, idx_loader)
-            selected_idx = self.select_sample_indices(idx_vectors, per_class)
+            selected_idx = self.select_sample_indices(self._sampling_method, idx_vectors, per_class)
             self._logger.info("New Class {} instance will be down-sample: {} => {}".format(class_idx, len(idx_targets), len(selected_idx)))
 
             balanced_data.append(idx_data[selected_idx])
@@ -217,55 +225,153 @@ class ReplayBank:
         balanced_data, balanced_targets = np.concatenate(balanced_data), np.concatenate(balanced_targets)
         return DummyDataset(balanced_data, balanced_targets, new_task_dataset.transform, new_task_dataset.use_path)
     
-    def store_samples_reservoir(self, dataset:DummyDataset, model):
-        """dataset 's transform should be in train mode!"""
-        if not hasattr(self, '_soft_targets_memory'):
-            self._soft_targets_memory = np.array([])
-        loader = DataLoader(dataset, batch_size=self._batch_size, shuffle=False, num_workers=self._num_workers)
-        # logits = self._extract_vectors(model, loader)[1].detach().cpu().numpy()
-        logits, data = self._extract_vectors(model, loader, ret_data=True)[1:]
-        logits, data = logits.detach().cpu().numpy(), data.cpu().numpy()
+    ########### Reservoir memory (used in DarkER, X-DER, ...) begin ###########
+    def store_samples_reservoir(self, examples, logits, labels):
+        """ This function is for DarkER and DarkER++ """
         init_size = 0
         if len(self._data_memory) == 0:
-            init_size = min(len(dataset), self._memory_size)
-            self._data_memory = data[:init_size]
-            self._targets_memory = dataset.targets[:init_size]
+            init_size = min(len(examples), self._memory_size)
+            self._data_memory = examples[:init_size]
+            self._targets_memory = labels[:init_size]
             self._soft_targets_memory = logits[:init_size]
             self._num_seen_examples += init_size
         elif len(self._data_memory) < self._memory_size:
-            init_size = self._memory_size - len(self._data_memory)
-            self._data_memory = np.concatenate([self._data_memory, data[:init_size]])
-            self._targets_memory = np.concatenate([self._targets_memory, dataset.targets[:init_size]])
+            init_size = min(len(examples), self._memory_size - len(self._data_memory))
+            self._data_memory = np.concatenate([self._data_memory, examples[:init_size]])
+            self._targets_memory = np.concatenate([self._targets_memory, labels[:init_size]])
             self._soft_targets_memory = np.concatenate([self._soft_targets_memory, logits[:init_size]])
             self._num_seen_examples += init_size
 
-        for i in range(init_size, len(dataset)):
+        for i in range(init_size, len(examples)):
             index = np.random.randint(0, self._num_seen_examples + 1)
             self._num_seen_examples += 1
             if index < self._memory_size:
-                self._data_memory[index] = data[i]
-                self._targets_memory[index] = dataset.targets[i]
+                self._data_memory[index] = examples[i]
+                self._targets_memory[index] = labels[i]
                 self._soft_targets_memory[index] = logits[i]
 
-    def get_memory_reservoir(self):
-        choice = np.random.choice(min(self._num_seen_examples, self._memory_size), size=self._batch_size, replace=False)
+    def get_memory_reservoir(self, size, use_path, transform=None, ret_idx=False):
+        if size > min(self._num_seen_examples, self._memory_size):
+            size = min(self._num_seen_examples, self._memory_size)
 
-        data_all = torch.from_numpy(self._data_memory[choice])
+        choice = np.random.choice(min(self._num_seen_examples, self._memory_size), size=size, replace=False)
+        
+        data_all = []
+        for sample in self._data_memory[choice]:
+            if transform is None:
+                data_all.append(torch.from_numpy(sample)) # [h, w, c]
+            elif use_path:
+                data_all.append(transform(pil_loader(sample))) # [c, h, w]
+            else:
+                data_all.append(transform(Image.fromarray(sample))) # [c, h, w]
+        data_all = torch.stack(data_all)
+        
         targets_all = torch.from_numpy(self._targets_memory[choice])
         soft_targets_all = torch.from_numpy(self._soft_targets_memory[choice])
 
-        return (data_all, targets_all, soft_targets_all)
+        ret = (data_all, targets_all, soft_targets_all)
+        if ret_idx:
+            ret = (torch.tensor(choice),) + ret
+
+        return ret
+
+    def update_memory_reservoir(self, new_logits, new_idx, task_begin, gamma):
+        # future logits for current task
+        transplant = new_logits[:, task_begin:]
+
+        gt_values = self._soft_targets_memory[new_idx, self._targets_memory[new_idx]]
+        max_values = transplant.max(1)
+        coeff = gamma * gt_values / max_values
+        coeff = np.repeat(np.expand_dims(coeff, 1), new_logits.shape[1]-task_begin, 1)
+        mask = np.repeat(np.expand_dims(max_values > gt_values, 1), new_logits.shape[1]-task_begin, 1)
+        transplant[mask] *= coeff[mask]
+
+        self._soft_targets_memory[new_idx][:, task_begin:] = transplant
+    
+    def store_samples_reservoir_v2(self, dataset:DummyDataset, model, gamma):
+        """dataset 's transform should be in train mode!"""
+        # Reduce buffer
+        class_range = np.unique(dataset.targets)
+        assert min(class_range)+1 > len(self._class_sampler_info), "Store_samples's dataset should not overlap with buffer"
+        self._memory_per_class = per_class = self._memory_size // (len(self._class_sampler_info) + len(class_range))
+        if len(self._data_memory) > 0:
+            self.reduce_memory(per_class)
+        
+        is_first_task = len(self._class_sampler_info) == 0
+        task_begin = min(class_range)
+
+        if not is_first_task:
+            # update future past
+            idx_dataset = DummyDataset(self._data_memory, self._targets_memory, dataset.transform, dataset.use_path)
+            idx_loader = DataLoader(idx_dataset, batch_size=self._batch_size, shuffle=False, num_workers=self._num_workers)
+            _, idx_logits = self._extract_vectors(model, idx_loader)
+            idx_logits = idx_logits.cpu().numpy()
+            self.update_memory_reservoir(idx_logits, np.arange(len(self._targets_memory)), task_begin, gamma)
+
+        data_mamory, targets_memory, soft_targets_memory = [], [], []
+        if len(self._class_sampler_info) > 0:
+            data_mamory.append(self._data_memory)
+            targets_memory.append(self._targets_memory)
+            soft_targets_memory.append(self._soft_targets_memory)
+
+        self._logger.info('Constructing exemplars for the sequence of {} new classes...'.format(len(class_range)))
+        new_task_memory_size = self._memory_size - len(self._class_sampler_info)*per_class
+        new_task_per_class = new_task_memory_size // len(class_range)
+        addition_num = np.zeros(len(class_range), dtype=int)
+        remainder_num = new_task_memory_size % len(class_range)
+        if remainder_num > 0:
+            addition_num[np.random.permutation(len(class_range))][:remainder_num] += 1
+        for class_idx in class_range:
+            class_data_idx = np.where(dataset.targets == class_idx)[0]
+            idx_data, idx_targets = dataset.data[class_data_idx], dataset.targets[class_data_idx]
+            idx_dataset = Subset(dataset, class_data_idx)
+            idx_loader = DataLoader(idx_dataset, batch_size=self._batch_size, shuffle=False, num_workers=self._num_workers)
+            _, idx_logits = self._extract_vectors(model, idx_loader)
+            idx_logits = idx_logits.cpu().numpy()
+
+            # future past scaling
+            if not is_first_task:
+                transplant = idx_logits[:, :task_begin]
+                
+                gt_values = idx_logits[np.arange(len(idx_logits)), idx_targets]
+                max_values = transplant.max(1)
+                coeff = gamma * gt_values / max_values
+                coeff = np.repeat(np.expand_dims(coeff, 1), task_begin, 1)
+                mask = np.repeat(np.expand_dims(max_values > gt_values, 1), task_begin, 1)
+                transplant[mask] *= coeff[mask]
+                idx_logits[:, :task_begin] = transplant
+            
+            idx_per_class = new_task_per_class + addition_num[class_idx-task_begin]
+            data_mamory.append(idx_data[:idx_per_class])
+            targets_memory.append(idx_targets[:idx_per_class])
+            soft_targets_memory.append(idx_logits[:idx_per_class])
+
+            self._class_sampler_info.append(idx_per_class)
+            self._logger.info("New Class {} instance will be stored: {} => {}".format(class_idx, len(idx_targets), idx_per_class))
+        
+        self._logger.info('Replay Bank stored {} classes, {} samples (more than {} samples per class)'.format(
+                len(self._class_sampler_info), sum(self._class_sampler_info), per_class))
+
+        self._data_memory = np.concatenate(data_mamory)
+        self._targets_memory = np.concatenate(targets_memory)
+        self._soft_targets_memory = np.concatenate(soft_targets_memory)
+        self._num_seen_examples += len(dataset)
+
+    def reset_update_counter(self):
+        self._update_counter = np.zeros(self._memory_size)
+    
+    ########### Reservoir memory (used in DarkER, X-DER, ...) end ###########
 
     ##################### Sampler Methods #####################
-    def select_sample_indices(self, vectors, m):
-        if self._sampling_method == 'herding':
+    def select_sample_indices(self, sampling_method, vectors, m):
+        if sampling_method == 'herding':
             selected_idx = self.herding_select(vectors, m)
-        elif self._sampling_method == 'random':
+        elif sampling_method == 'random':
             selected_idx = self.random_select(vectors, m)
-        elif self._sampling_method == 'closest_to_mean':
+        elif sampling_method == 'closest_to_mean':
             selected_idx = self.closest_to_mean_select(vectors, m)
         else:
-            raise ValueError('Unknown sample select strategy: {}'.format(self._sampling_method))
+            raise ValueError('Unknown sample select strategy: {}'.format(sampling_method))
         return selected_idx
 
     def random_select(self, vectors, m):
@@ -317,20 +423,26 @@ class ReplayBank:
         return selected_idx
     ###########################################################
 
-    def _extract_vectors(self, model, loader, ret_data=False):
+    def _extract_vectors(self, model, loader, ret_data=False, ret_add_info=False):
         model.eval()
         vectors = []
         logits = []
         data = []
+        addition_info = []
         with torch.no_grad():
-            for _, _inputs, _targets in loader:
+            for _add_info, _inputs, _targets in loader:
                 out, output_features = model(_inputs.cuda())
                 vectors.append(output_features['features'])
                 logits.append(out)
                 if ret_data:
                     data.append(_inputs)
-            if ret_data:
-                return torch.cat(vectors), torch.cat(logits), torch.cat(data)
-            else:
-                return torch.cat(vectors), torch.cat(logits)
+                if ret_add_info:
+                    addition_info.append(_add_info)
+        
+        ret = (torch.cat(vectors), torch.cat(logits))
+        if ret_data:
+            ret = ret + (torch.cat(data),)
+        if ret_add_info:
+            ret = ret + (torch.cat(addition_info),)
+        return ret
     

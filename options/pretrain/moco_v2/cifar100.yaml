@@ -35,12 +35,13 @@ options:
     # experiment settings for cifar100
     cifar100: 
         resnet32:
-            opt_type: adam
             epochs: 1 #80
+            batch_size: 32
+            num_workers: 8
+
+            opt_type: adam
             lrate: 0.001
+
             scheduler: multi_step
             milestones: [60,120,160]
             lrate_decay: 0.1
-            batch_size: 32
-            num_workers: 8
-            

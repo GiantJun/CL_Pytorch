@@ -37,11 +37,15 @@ options:
     cifar10: 
         resnet18_cbam:
             pretrain_path: pretrain_weights/imagenet200_resnet18_cbam_pretrained.pth
-            opt_type: adam
+            
             epochs: 200 #80
+            batch_size: 128
+            num_workers: 8
+            
+            opt_type: adam
             lrate: 0.001
+            
             scheduler: multi_step
             milestones: [60,120,160]
             lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 8
+            

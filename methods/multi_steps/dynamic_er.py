@@ -5,31 +5,20 @@ from torch.nn import functional as F
 from torch.nn.functional import cross_entropy
 from torch.utils.data import DataLoader
 from torch import optim
+from argparse import ArgumentParser
 
-from backbone.inc_net import DERNet
+from backbone.dynamic_er_net import DERNet
 from methods.multi_steps.finetune_il import Finetune_IL
-from utils.toolkit import count_parameters, target2onehot, tensor2numpy
-
-'''
-hyper-parameters:
-resnet32:
-    opt_type: sgd (have a huge impact to result)
-    epochs: 170 # 170
-    lrate: 0.1
-    scheduler: multi_step
-    milestones: [100,120]
-    lrate_decay: 0.1
-    weight_decay: 0.0005
-    batch_size: 128
-    num_workers: 8
-
-CIFAR100 result:
-| Method Name       | exp seting | Avg Acc | Final Acc |
-| ----------------- | ---------- | ------- | --------- |
-| DER               | b0i10      | 75.15   | 67.77     |
-'''
+from utils.toolkit import count_parameters, tensor2numpy
 
 EPSILON = 1e-8
+
+def add_special_args(parser: ArgumentParser) -> ArgumentParser:
+    parser.add_argument('--T', type=float, default=None, help='tempreture apply to the output logits befor softmax')
+    parser.add_argument('--epochs_finetune', type=int, default=None, help='balance finetune epochs')
+    parser.add_argument('--lrate_finetune', type=float, default=None, help='balance finetune learning rate')
+    parser.add_argument('--milestones_finetune', nargs='+', type=int, default=None, help='for multi step learning rate decay scheduler')
+    return parser
 
 class Dynamic_ER(Finetune_IL):
     def __init__(self, logger, config):

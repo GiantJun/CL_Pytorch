@@ -5,6 +5,7 @@ import torch
 from torch import optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
+from argparse import ArgumentParser
 
 from backbone.inc_net import CosineIncrementalNet
 from methods.multi_steps.finetune_il import Finetune_IL
@@ -48,6 +49,16 @@ Maybe I missed something...
 |   LSC-NCA (k=10)   |         5          |       64.48        |       64.37        |
 +--------------------+--------------------+--------------------+--------------------+
 '''
+
+def add_special_args(parser: ArgumentParser) -> ArgumentParser:
+    parser.add_argument('--layer_names', nargs='+', type=str, default=None, help='layers to apply prompt, e.t. [layer1, layer2]')
+    parser.add_argument('--lambda_c_base', type=float, default=None, help='lambda_c_base for podnet') # podnet
+    parser.add_argument('--lambda_f_base', type=float, default=None, help='lambda_f_base for podnet') # podnet
+    parser.add_argument('--nb_proxy', type=int, default=None, help='nb_proxy for podnet') # podnet
+    parser.add_argument('--epochs_finetune', type=int, default=None, help='balance finetune epochs')
+    parser.add_argument('--lrate_finetune', type=float, default=None, help='balance finetune learning rate')
+    parser.add_argument('--milestones_finetune', nargs='+', type=int, default=None, help='for multi step learning rate decay scheduler')
+    return parser
 
 
 class PODNet(Finetune_IL):

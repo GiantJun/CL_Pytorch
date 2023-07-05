@@ -23,8 +23,16 @@ class CUB200(iData):
             transforms.RandomRotation(20),
             transforms.RandomHorizontalFlip(),
             ]
-        
+        self.strong_trsf = [
+            transforms.RandomResizedCrop(size=224, scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            # transforms.RandomGrayscale(p=0.2),
+        ]
         self.test_trsf = []
+
         
         self.common_trsf = [
             transforms.Resize((self.img_size, self.img_size)),

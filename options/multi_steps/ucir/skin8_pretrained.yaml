@@ -1,0 +1,66 @@
+######### Basic Settings #########
+basic:
+    device: '0'
+    seed: [1, 42, 50, 100, 1993] # 42, 100, 1993
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: skin8
+    shuffle: false # true
+
+    # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
+    method: ucir
+    method_type: multi_steps
+    # eval_metric Choises: acc, recall
+    eval_metric: mcr
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: cosine_resnet18
+    pretrained: true
+    save_models: true # if true, programm will save model's weights during incremental train
+
+    ######### Exampler Hyperparameters #########
+    memory_size: 16
+    fixed_memory: false # true, as the paper reported
+    sampling_method: herding # herding, random, closest_to_mean
+
+    apply_nme: true
+
+    ######### Task Settings, unimportant in Joint #########
+    # for some datasets(e.g. MedMNist), this will be ignored
+    split_dataset: true
+    init_cls: 2
+    increment: 2
+    
+    note: pretrained_buffer16_lr0.001
+
+######### Method's Hyperparameters #########
+special:
+    incre_type: cil
+    lambda_base: 5 # based on dataset
+    K: 2 # for all experiments
+    margin: 0.5 # for all experiments
+    nb_proxy: 1    
+
+######### Experiment Settings for Datasets #########
+options:
+    # experiment settings for cifar100
+    skin8: 
+        cosine_resnet18:
+            img_size: 224
+
+            epochs: 200 # 200
+            batch_size: 32
+            num_workers: 4
+
+            # opt_type: adam
+            opt_type: sgd
+            lrate: 0.001
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
+            scheduler: multi_step
+            milestones: [70, 130, 170]
+            lrate_decay: 0.1
+            

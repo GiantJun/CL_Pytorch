@@ -6,7 +6,7 @@ basic:
     # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
     dataset: cifar100
-    shuffle: true
+    shuffle: false
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: dark_er
@@ -15,7 +15,7 @@ basic:
     eval_metric: acc
 
     # Backbone Choises: resnet18
-    backbone: resnet32
+    backbone: resnet18_cifar
     pretrained: false # false
     save_models: false # if true, programm will save model's weights during incremental train
 
@@ -30,7 +30,7 @@ basic:
     init_cls: 10
     increment: 10
 
-    note: dark_er_pp
+    note: der_pp
 
 ######### Method's Hyperparameters #########
 special:
@@ -42,26 +42,19 @@ special:
 options:
     # experiment settings for cifar100
     cifar100: 
-        resnet32:
+        resnet18_cifar:
             img_size: 32
-            opt_type: sgd
-            epochs: 170 # 170
-            lrate: 0.03
-            scheduler: multi_step
-            milestones: [100, 120, 145]
-            lrate_decay: 0.1
-            weight_decay: 0.0005
+
+            epochs: 50 # 170
             batch_size: 32
-            num_workers: 4
-        
-        resnet18:
-            img_size: 224
+            num_workers: 4  
+            
             opt_type: sgd
-            epochs: 170 # 170
-            lrate: 0.01
+            lrate: 0.03 # 0.03
+            weight_decay: 0
+            opt_mom: 0
+
             scheduler: multi_step
-            milestones: [100,120]
+            milestones: [35, 45]
             lrate_decay: 0.1
-            weight_decay: 0.0005
-            batch_size: 32
-            num_workers: 4
+            

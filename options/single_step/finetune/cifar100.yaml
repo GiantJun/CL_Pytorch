@@ -30,44 +30,33 @@ basic:
 ######### Experiment Settings for Datasets #########
 options:
     # experiment settings for cifar100
-    cifar100: 
-        resnet18_cbam:
-            pretrain_path: pretrain_weights/imagenet200_resnet18_cbam_pretrained.pth
-            opt_type: adam
-            epochs: 100 #80
-            lrate: 0.01
-            scheduler: multi_step
-            milestones: [60,120,160]
-            lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 4
-        
+    cifar100:        
         resnet18:
             img_size: 224
-            opt_type: adam
+
             epochs: 200 # 340
-            lrate: 0.01
+            batch_size: 64
+            num_workers: 4
+
+            opt_type: sgd
+            lrate: 0.001
+            weight_decay: 0.0005
+            opt_mom: 0.9
+            
             scheduler: multi_step
             milestones: [70, 130, 170]
             lrate_decay: 0.1
-            batch_size: 128
-            num_workers: 4
-        
-        resnet32:
-            # opt_type: adam
-            # epochs: 200 #80
-            # lrate: 0.001
-            # scheduler: multi_step
-            # milestones: [60,120,160]
-            # lrate_decay: 0.1
-            # batch_size: 128
-            # num_workers: 8
-            opt_type: adam
-            epochs: 100 #80
-            lrate: 0.001
-            scheduler: multi_step
-            milestones: [45, 90]
-            lrate_decay: 0.1
-            batch_size: 64
-            num_workers: 4
             
+        resnet32:
+            epochs: 200 #80
+            batch_size: 128
+            num_workers: 8
+
+            opt_type: sgdopt_type: sgd
+            lrate: 0.001
+            weight_decay: 0.0005
+            opt_mom: 0.9        
+    
+            scheduler: multi_step
+            milestones: [60,120,160]
+            lrate_decay: 0.1

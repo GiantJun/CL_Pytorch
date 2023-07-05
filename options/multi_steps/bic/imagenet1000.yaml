@@ -1,6 +1,6 @@
 ######### Basic Settings #########
 basic:
-    device: '3'
+    device: '6'
     seed: [1993] # icarl 官方代码给的种子是 1993
 
     # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
@@ -18,10 +18,10 @@ basic:
     # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
     backbone: resnet18
     pretrained: false
-    save_models: false # if true, programm will save model's weights during incremental train
+    save_models: true # if true, programm will save model's weights during incremental train
 
     ######### Exampler Hyperparameters #########
-    memory_size: 2000
+    memory_size: 20000
     fixed_memory: false
     # memory_per_class: 20
     sampling_method: herding # herding, random, closest_to_mean 
@@ -43,13 +43,15 @@ options:
     # experiment settings for cifar100
     imagenet1000: 
         resnet18:
-            opt_type: sgd
-            epochs: 170 # 170
-            lrate: 0.1
-            scheduler: multi_step
-            milestones: [60, 100, 140]
-            lrate_decay: 0.1
-            batch_size: 128
-            weight_decay: 0.0002
+            epochs: 100 # 170
+            batch_size: 256
             num_workers: 8
-            
+
+            opt_type: sgd
+            lrate: 0.1
+            weight_decay: 0.0001
+            opt_mom: 0.9
+
+            scheduler: multi_step
+            milestones: [30, 60, 80, 90]
+            lrate_decay: 0.1

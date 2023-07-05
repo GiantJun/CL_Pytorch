@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from utils.center_loss import CenterLoss
+from utils.losses import CenterLoss
 from utils.toolkit import tensor2numpy
 
 EPSILON = 1e-8
@@ -37,6 +37,7 @@ class BaseLearner(object):
         self._backbone = config.backbone
         self._seed = config.seed
         self._save_models = config.save_models
+        self._save_pred_record = config.save_pred_record
 
         self._gpu_num = config.gpu_num
         self._eval_metric = config.eval_metric
@@ -142,57 +143,21 @@ class BaseLearner(object):
                     best_epoch_info['valid_acc']))
         return model
 
+    @abc.abstractmethod
     def _epoch_train(self, model, train_loader, optimizer, scheduler):
-        losses = 0.
-        correct, total = 0, 0
-        model.train()
-        for _, inputs, targets in train_loader:
-            inputs, targets = inputs.cuda(), targets.cuda()
-
-            logits, feature_outputs = model(inputs)
-            loss = self._criterion(logits, targets)
-            preds = torch.max(logits, dim=1)[1]
+        '''
+        train code in every epoch
+        '''
+        # your code
+        pass
     
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            losses += loss.item()
-
-            correct += preds.eq(targets).cpu().sum()
-            total += len(targets)
-        
-        if scheduler != None:
-            scheduler.step()
-        train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
-        train_loss = ['Loss', losses/len(train_loader)]
-        return model, train_acc, train_loss
-    
+    # @abc.abstractmethod
     def _epoch_test(self, model, test_loader, ret_pred_target=False):
-        cnn_correct, total = 0, 0
-        cnn_pred_all, target_all = [], []
-        cnn_max_scores_all = []
-        model.eval()
-        for _, inputs, targets in test_loader:
-            inputs, targets = inputs.cuda(), targets.cuda()
-            outputs, feature_outputs = model(inputs)
-            cnn_max_scores, cnn_preds = torch.max(torch.softmax(outputs, dim=-1), dim=-1)
-            
-            if ret_pred_target:
-                cnn_pred_all.append(tensor2numpy(cnn_preds))
-                target_all.append(tensor2numpy(targets))
-                cnn_max_scores_all.append(tensor2numpy(cnn_max_scores))
-            else:
-                cnn_correct += cnn_preds.eq(targets).cpu().sum()
-                total += len(targets)
-        
-        if ret_pred_target:
-            cnn_pred_all = np.concatenate(cnn_pred_all)
-            target_all = np.concatenate(target_all)
-            cnn_max_scores_all = np.concatenate(cnn_max_scores_all)
-            return cnn_pred_all, cnn_max_scores_all, target_all
-        else:
-            test_acc = np.around(tensor2numpy(cnn_correct)*100 / total, decimals=2)
-            return test_acc
+        '''
+        test code in every epoch
+        '''
+        # your code
+        pass
 
     @abc.abstractmethod
     def eval_task(self):
@@ -226,9 +191,14 @@ class BaseLearner(object):
     def _get_optimizer(self, params, config, **kwargs):
         optimizer = None
         if config.opt_type == 'sgd':
-            optimizer = optim.SGD(params, momentum=0.9, lr=config.lrate, weight_decay=config.weight_decay)
+            optimizer = optim.SGD(params, lr=config.lrate,
+                                    momentum=0 if config.opt_mom is None else config.opt_mom,
+                                    weight_decay=0 if config.weight_decay is None else config.weight_decay)
+            self._logger.info('Applying sgd: lr={}, momenton={}, weight_decay={}'.format(config.lrate, config.momentum, config.weight_decay))
         elif config.opt_type == 'adam':
-            optimizer = optim.Adam(params, lr=config.lrate)
+            optimizer = optim.Adam(params, lr=config.lrate,
+                                    weight_decay=0 if config.weight_decay is None else config.weight_decay)
+            self._logger.info('Applying adam: lr={}, weight_decay={}'.format(config.lrate, config.weight_decay))
         else: 
             raise ValueError('No optimazer: {}'.format(config.opt_type))
         return optimizer
@@ -238,8 +208,10 @@ class BaseLearner(object):
         scheduler = None
         if config.scheduler == 'multi_step':
             scheduler = optim.lr_scheduler.MultiStepLR(optimizer=optimizer, milestones=config.milestones, gamma=config.lrate_decay)
+            self._logger.info('Applying multi_step scheduler: lr_decay={}, milestone={}'.format(config.lrate_decay, config.milestones))
         elif config.scheduler == 'cos':
             scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=config.epochs)
+            self._logger.info('Applying cos scheduler: T_max={}'.format(config.epochs))
         elif config.scheduler == None:
             scheduler = None
         else: 

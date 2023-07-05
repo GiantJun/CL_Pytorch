@@ -5,6 +5,8 @@ import os
 import torch
 from utils.data_manager import DataManager
 import methods
+import numpy as np
+import random
 
 os.environ['WANDB_MODE']='offline'
 
@@ -12,6 +14,8 @@ def set_random(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -88,6 +92,7 @@ if __name__ == '__main__':
             logger.release_handlers()
 
     else: # train model
+        torch.set_num_threads(config.num_workers) # limit cpu usage, important for DarkER, X-DER
         seed_list = copy.deepcopy(config.seed)
         try:
             for seed in seed_list:

@@ -1,6 +1,8 @@
-# An Classification Framework for Continual Learning
+# Continual Learning Framework for Pytorch
 
-This repository implements some continual / incremental / lifelong learning methods by PyTorch.
+This codebase implements some SOTA continual / incremental / lifelong learning methods by PyTorch.
+
+By the way, this is also the official repository of [Adapter Learning in Pretrained Feature Extractor for Continual Learning of Diseases. MICCAI2023](https://arxiv.org/abs/2304.09042)
 
 One step baseline method:
 
@@ -12,10 +14,15 @@ Continual methods already supported:
 - [x] iCaRL: Incremental Classifier and Representation Learning. [[paper](https://arxiv.org/abs/1611.07725)]
 - [x] GEM: Gradient Episodic Memory for Continual Learning. NIPS2017 [[paper](https://arxiv.org/abs/1706.08840)]
 - [x] UCIR: Learning a Unified Classifier Incrementally via Rebalancing. CVPR2019[[paper](https://openaccess.thecvf.com/content_CVPR_2019/html/Hou_Learning_a_Unified_Classifier_Incrementally_via_Rebalancing_CVPR_2019_paper.html)]
+- [x] BiC: Large Scale Incremental Learning. [[paper](https://arxiv.org/abs/1905.13260)]
 - [x] PODNet: PODNet: Pooled Outputs Distillation for Small-Tasks Incremental Learning. [[paper](https://arxiv.org/abs/2004.13513)]
 - [x] WA: Maintaining Discrimination and Fairness in Class Incremental Learning. CVPR2020 [[paper](https://arxiv.org/abs/1911.07053)]
+- [x] Dark Experience for General Continual Learning: a Strong, Simple Baseline. NeurIPS [[paper](https://arxiv.org/abs/2004.07211)]
 - [x] DER: Dynamically Expandable Representation for Class Incremental Learning. CVPR2021[[paper](https://arxiv.org/abs/2103.16788)]
-- [x] Layerwise Optimization by Gradient Decomposition for Continual Learning. CVPR2021[[paper](https://arxiv.org/abs/2105.07561v1)]
+- [x] L2P: Learning to Prompt for continual learning. CVPR2022[[paper](https://arxiv.org/abs/2112.08654)]
+- [x] DualPrompt: Complementary Prompting for Rehearsal-free Continual Learning. ECCV2022 [[paper](https://arxiv.org/abs/2204.04799)]
+- [x] CODA-Prompt: COntinual Decomposed Attention-based Prompting for Rehearsal-Free Continual Learning. CVPR2023 [[paper](https://arxiv.org/abs/2211.13218)]
+- [x] Adapter-CL: Adapter Learning in Pretrained Feature Extractor for Continual Learning of Diseases. MICCAI2023 [[paper](https://arxiv.org/abs/2304.09042)]
 
 Contrastive model pretraining methods already supported:
 
@@ -27,17 +34,17 @@ Coming soon:
 - [ ] LwF:  Learning without Forgetting. ECCV2016 [[paper](https://arxiv.org/abs/1606.09282)]
 - [ ] EWC: Overcoming catastrophic forgetting in neural networks. PNAS2017 [[paper](https://arxiv.org/abs/1612.00796)]
 - [ ] LwM: Learning without Memorizing. [[paper](https://arxiv.org/abs/1811.08051)]
+- [ ] Layerwise Optimization by Gradient Decomposition for Continual Learning. CVPR2021[[paper](https://arxiv.org/abs/2105.07561v1)]
 - [ ] End2End: End-to-End Incremental Learning. [[paper](https://arxiv.org/abs/1807.09536)]
-- [ ] BiC: Large Scale Incremental Learning. [[paper](https://arxiv.org/abs/1905.13260)]
-- [ ] L2P: Learning to Prompt for continual learning. CVPR2022[[paper](https://arxiv.org/abs/2112.08654)]
 - [ ] FOSTER: Feature Boosting and Compression for Class-incremental Learning. ECCV 2022 [[paper](https://arxiv.org/abs/2204.04662)]
+- [ ] Class-Incremental Continual Learning into the eXtended DER-verse. TPAMI 2022 [[paper](https://arxiv.org/abs/2201.00766)]
 
 ## How to Use
 
 ### Prepare environment
 
 ```bash
-pip3 install pyyaml tensorboard tensorboard wandb scikit-learn timm quadprog
+pip3 install pyyaml tensorboard tensorboard wandb scikit-learn timm quadprog tensorboardX
 ```
 
 ### Run experiments
@@ -50,7 +57,7 @@ pip3 install pyyaml tensorboard tensorboard wandb scikit-learn timm quadprog
 python main.py --config options/XXX/XXX.yaml
 ```
 
-3. Test models with checkpoint
+3. Test models with checkpoint (ensure save_model option is True before training)
 
 ```bash
 python main.py --checkpoint_dir logs/XXX/XXX.pkl
@@ -58,10 +65,9 @@ python main.py --checkpoint_dir logs/XXX/XXX.pkl
 
 If you want to temporary change GPU device in the experiment, you can type `--device #GPU_ID` without changing 'device' in `.yaml` config file.
 
-### Add datasets
+### Add datasets and your method
 
-1. Add corresponding classes to `utils/datasets.py`.
-2. Modify the `_get_idata` function in `utils/data_manager.py`.
+Add corresponding dataset .py file to `datasets/`. It is done! The programme can automatically import the newly added datasets.
 
 we put continual learning methods inplementations in `/methods/multi_steps` folder, pretrain methods in `/methods/pretrain` folder and normal one step training methods in `/methods/singel_steps`.
 
@@ -71,39 +77,25 @@ Supported Datasets:
 
 - Medical image datasets: MedMNIST, SD-198
 
-More information about the supported datasets can be found in `utils/dataset.py`
+More information about the supported datasets can be found in `datasets/`
 
-### Results
-
-Exp setting: resnet32, cifar100, seed 1993
-| Method Name         | exp seting | Avg Acc | Final Acc | Paper reported Avg Acc |
-| ------------------- | ---------- | ------- | --------- | ---------------------- |
-| Finetune            | b0i10      | 25.31   | 8.24      | --                     |
-| Finetune (Replay)   | b0i10      | 57.68   | 40.24     | --                     |
-| Joint               | --         | --      | 65.66     | --                     |
-| iCaRL (NME)         | b0i10      | 64.65   | 48.78     | 64.1                   |
-| WA                  | b0i20      | 67.45   | 55.67     | 66.6                   |
-| LUCIR               | b50i10     | 64.25   | 54.39     | 63.42                  |
-| LUCIR (NME)         | b50i10     | 63.77   | 53.16     | 63.12                  |
-| DER (w/o P)         | b0i10      | 72.51   | 62.06     | 71.29                  |
-| PODNet (CNN)        | b50i10     | 63.91   | 54.24     | 63.19                  |
-| PODNet (NME)        | b50i10     | 63.66   | 54.26     | 64.03                  |
-
-
-`Avg Acc` (Average Incremental Accuracy) is the average of the accuracy after each phase.
+### Reproduce Results
+More details can be found in [Reproduce_results.md](./markdowns/Reproduce_results.md).
 
 ## References
 
-We sincerely thank the following works for providing help in our work.
-
-https://github.com/arthurdouillard/incremental_learning.pytorch
+We sincerely thank the following works for providing help.
 
 https://github.com/zhchuu/continual-learning-reproduce
 
 https://github.com/G-U-N/PyCIL
 
+https://github.com/GT-RIPL/CODA-Prompt
+
+https://github.com/aimagelab/mammoth
+
 ## ToDo
 
-- Results need to be checked: icarl, podnet, ewc
-- Methods need to be modified: bic, gem, mas, lwf
+- Results need to be checked: ewc
+- Methods need to be modified: mas, lwf
 - Multi GPU processing module need to be add.

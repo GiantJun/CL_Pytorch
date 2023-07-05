@@ -9,7 +9,7 @@ class CIFAR10(iData):
     Source:         A subset of the Tiny Images dataset.
     Task:           Classification Task
     Data Format:    32x32 color images.
-    Data Amount:    60000 (10000 training images and 5000 testing images per class)
+    Data Amount:    60000 (5000 training images and 1000 testing images per class)
     Class Num:      10 (grouped into 2 superclass).
     Label:          Each image comes with a "fine" label (the class to which it belongs) and a "coarse" label (the superclass to which it belongs).
     
@@ -24,6 +24,14 @@ class CIFAR10(iData):
             transforms.RandomHorizontalFlip(p=0.5),
             # transforms.RandomRotation(15),
             # transforms.ColorJitter(brightness=63/255)
+        ]
+        self.strong_trsf = [
+            transforms.RandomResizedCrop(size=32, scale=(0.2, 1.)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            # transforms.RandomGrayscale(p=0.2),
         ]
         self.test_trsf = []
         self.common_trsf = [

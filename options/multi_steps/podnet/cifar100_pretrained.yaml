@@ -47,17 +47,19 @@ options:
     cifar100: 
         cosine_resnet18:
             img_size: 224
-            opt_type: sgd
-            scheduler: cos
+
+            layer_names: ['layer1', 'layer2', 'layer3', 'layer3']
+            
             epochs: 160 # 160
-            lrate: 0.01
             batch_size: 128
+            num_workers: 4            
+
+            opt_type: sgd
+            lrate: 0.01
             weight_decay: 0.0005
+            opt_mom: 0.9
+
+            scheduler: cos
             
-            epochs_finetune: 50
+            epochs_finetune: 20
             lrate_finetune: 0.005
-
-            layer_names: ['stage_1', 'stage_2', 'stage_3']
-
-            num_workers: 4
-            

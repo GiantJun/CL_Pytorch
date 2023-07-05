@@ -48,17 +48,18 @@ options:
     # experiment settings for cifar100
     skin8: 
         cosine_resnet18:
-            opt_type: sgd
-            scheduler: cos
-            epochs: 200 # 160
-            lrate: 0.001
-            batch_size: 32
-            weight_decay: 0.0005
+            layer_names: ['layer1', 'layer2', 'layer3', 'layer4']
             
+            epochs: 200 # 160
+            batch_size: 32
+            num_workers: 4
+
+            opt_type: sgd
+            lrate: 0.001
+            weight_decay: 0.0005
+            opt_mom: 0.9
+
+            scheduler: cos
+                        
             epochs_finetune: 100
             lrate_finetune: 0.001
-
-            layer_names: ['layer1', 'layer2', 'layer3', 'layer4']
-
-            num_workers: 4
-            

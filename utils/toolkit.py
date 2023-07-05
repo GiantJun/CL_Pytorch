@@ -1,9 +1,13 @@
 import os
 import numpy as np
 import torch
+from torchvision import transforms
+import torch.nn as nn
 from PIL import Image
 from torch.utils.data import Dataset
-from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
+from sklearn.metrics import confusion_matrix, roc_curve, auc, average_precision_score
+
+
 
 def count_parameters(model, trainable=False):
     if trainable:
@@ -86,18 +90,24 @@ def mean_class_recall(y_pred, y_true, nb_old, increment):
     # Grouped accuracy
     for cur_classes in increment:
         idxes = np.where(np.logical_and(y_true >= known_classes, y_true < known_classes + cur_classes))[0]
-        task_mcr_list.append(cal_mean_class_recall(y_pred[idxes], y_true[idxes]))
+        task_mcr_list.append(cal_mean_class_recall(y_pred[idxes], y_true[idxes], cur_classes))
         known_classes += cur_classes
         if known_classes >= nb_old:
             break
     return total_mcr, task_mcr_list
 
-def cal_mean_class_recall(y_pred, y_true):
-    """ Calculate the mean class recall for the dataset X """
+def cal_mean_class_recall(y_pred, y_true, task_size=None):
+    """ Calculate the mean class recall for the dataset X 
+    Note: should take task_size input seriously when calculating task-specific MCR !!!
+    """
     cm = confusion_matrix(y_true, y_pred)
     right_of_class = np.diag(cm)
     num_of_class = cm.sum(axis=1)
-    mcr = np.around((right_of_class*100 / (num_of_class+1e-8)).mean(), decimals=2)
+    if task_size is None:
+        task_size = cm.shape[0]
+    # Can not use (right_of_class*100 / (num_of_class+1e-8)).mean() to calculate !!!
+    # This is WRONG for task-specific MCR !!!
+    mcr = np.around((right_of_class*100 / (num_of_class+1e-8)).sum() / task_size, decimals=2)
     return mcr
 
 def cal_bwf(task_metric_curve, cur_task):
@@ -112,6 +122,13 @@ def cal_bwf(task_metric_curve, cur_task):
         bwf /= cur_task
     return bwf
 
+def cal_avg_forgetting(task_metric_curve, cur_task):
+    """cur_task in [0, T-1]"""
+    avg_forget = 0.
+    if cur_task > 0:
+        avg_forget = (task_metric_curve[:cur_task, :cur_task].max(axis=1) - task_metric_curve[:cur_task, cur_task]).mean()
+    return avg_forget
+
 def split_images_labels(imgs):
     # split trainset.imgs in ImageFolder
     images = []
@@ -122,37 +139,6 @@ def split_images_labels(imgs):
 
     return np.array(images), np.array(labels)
 
-class DummyDataset(Dataset):
-    def __init__(self, data, targets, transform, use_path=False, two_view=False, soft_targets=None):
-        assert len(data) == len(targets), 'Data size error!'
-        self.data = data
-        self.targets = targets
-        self.soft_targets = soft_targets
-
-        self.transform = transform
-        self.use_path = use_path
-        self.two_view = two_view
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        if self.use_path:
-            image = self.transform(pil_loader(self.data[idx]))
-        else:
-            image = self.transform(Image.fromarray(self.data[idx]))
-        label = self.targets[idx]
-        logit = self.soft_targets[idx] if self.soft_targets is not None else -1
-        if self.two_view:
-            if self.use_path:
-                image2 = self.transform(pil_loader(self.data[idx]))
-            else:
-                image2 = self.transform(Image.fromarray(self.data[idx]))
-            image = [image, image2]
-            return logit, image, label
-        else:
-            return logit, image, label
-
 def pil_loader(path):
     '''
     Ref:
@@ -162,3 +148,57 @@ def pil_loader(path):
     with open(path, 'rb') as f:
         img = Image.open(f)
         return img.convert('RGB')
+    
+class DummyDataset(Dataset):
+    def __init__(self, data, targets, transform, use_path=False, two_view=False, ret_origin=False):
+        assert len(data) == len(targets), 'Data size error!'
+        self.data = data
+        self.targets = targets
+        self.ret_origin = ret_origin
+
+        self.transform = transform
+        self.use_path = use_path
+        self.two_view = two_view
+
+        self.no_transform = transforms.PILToTensor()
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        if self.use_path:
+            origin_img = pil_loader(self.data[idx])
+        else:
+            origin_img = Image.fromarray(self.data[idx])
+        image = self.transform(origin_img)
+        label = self.targets[idx]
+        addition_info = self.no_transform(origin_img) if self.ret_origin else idx
+        if self.two_view:
+            if self.use_path:
+                image2 = self.transform(pil_loader(self.data[idx]))
+            else:
+                image2 = self.transform(Image.fromarray(self.data[idx]))
+            image = [image, image2]
+            
+        return addition_info, image, label
+    
+    def set_ret_origin(self, mode:bool):
+        self.ret_origin = mode
+
+class bn_track_stats:
+    def __init__(self, module: nn.Module, condition=True):
+        self.module = module
+        self.enable = condition
+
+    def __enter__(self):
+        if not self.enable:
+            for m in self.module.modules():
+                if isinstance(m, (torch.nn.BatchNorm2d, torch.nn.BatchNorm1d)):
+                    m.track_running_stats = False
+
+    def __exit__(self ,type, value, traceback):
+        if not self.enable:
+            for m in self.module.modules():
+                if isinstance(m, (torch.nn.BatchNorm2d, torch.nn.BatchNorm1d)):
+                    m.track_running_stats = True
+                    

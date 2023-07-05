@@ -1,0 +1,53 @@
+######### Basic Settings #########
+basic:
+    device: '2'
+    seed: [1993] # icarl 官方代码给的种子是 1993
+
+    # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
+    # skin7, sd198(also known as skin40), mymedmnist
+    dataset: cifar100
+    shuffle: true
+
+    # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
+    method: l2p
+    method_type: multi_steps
+    # eval_metric Choises: acc, recall
+    eval_metric: acc
+
+    # Backbone Choises: resnet18, resnet18_cbam, cosine_resnet18, 
+    # resnet32, cosine_resnet32, resnet34, cosine_resnet34, resnet50
+    backbone: vit_base_patch16_224 # not used
+    pretrained: true # not used
+    freeze_fe: true
+    save_models: false # if true, programm will save model's weights during incremental train
+
+    ######### Task Settings, unimportant in Joint #########
+    # for some datasets(e.g. MedMNist), this will be ignored
+    split_dataset: true
+    init_cls: 10
+    increment: 10
+    
+    note: l2p_deep
+
+######### Method's Hyperparameters #########
+special:
+    incre_type: cil
+    prompt_pool: 30
+    prompt_length: 20
+    shallow_or_deep: False
+
+######### Experiment Settings for Datasets #########
+options:
+    # experiment settings for cifar100
+    cifar100: 
+        vit_base_patch16_224:
+            img_size: 224
+
+            epochs: 20 #20
+            batch_size: 64 # 128
+            num_workers: 4            
+
+            opt_type: adam
+            lrate: 0.001
+            scheduler: cos
+            

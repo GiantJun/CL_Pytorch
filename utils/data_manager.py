@@ -30,6 +30,7 @@ class DataManager(object):
         if hasattr(idata, '_dataset_inc'):  # for datasets which have sub-datasets, likes MedMNistS
             if shuffle:
                 idata.shuffle_order(seed)
+                self._logger.info("task shuffle order is produced by seed {}".format(seed))
             if self._split_dataset:
                 self._increment_steps = idata._dataset_inc
             else:
@@ -42,9 +43,11 @@ class DataManager(object):
             if shuffle:
                 np.random.seed(seed)
                 order = np.random.permutation(len(order)).tolist()
+                self._logger.info("class shuffle order is produced by seed {}".format(seed))
             else:
-                np.random.seed(1993) # follow the class order of icarl
+                np.random.seed(1993)
                 order = np.random.permutation(len(order)).tolist()
+                self._logger.info("class shuffle order is produced by seed 1993 (default)")
 
             self._class_order = order
             self._logger.info('class order: {}'.format(self._class_order))
@@ -62,11 +65,13 @@ class DataManager(object):
 
         idata.download_data()
 
-        # self.class_to_idx = idata.class_to_idx
+        self.class_to_idx = idata.class_to_idx
 
         self.img_size = idata.img_size
         self._train_data, self._train_targets = idata.train_data, idata.train_targets
         self._test_data, self._test_targets = idata.test_data, idata.test_targets
+        self.train_sample_num = len(self._train_targets)
+        self.test_sample_num = len(self._test_targets)
         if use_valid:
             if idata.has_valid:
                 self._valid_data, self._valid_targets = idata.valid_data, idata.valid_targets
@@ -76,12 +81,23 @@ class DataManager(object):
 
         # Transforms
         self._train_trsf = idata.train_trsf
+        self._strong_trsf = idata.strong_trsf
         self._test_trsf = idata.test_trsf
         self._common_trsf = idata.common_trsf
 
         # Map indices
-        self._train_targets = _map_new_class_index(self._train_targets, self._class_order)
-        self._test_targets = _map_new_class_index(self._test_targets, self._class_order)
+        self._train_targets = self._map_new_class_index(self._train_targets, self._class_order)
+        self._test_targets = self._map_new_class_index(self._test_targets, self._class_order)
+        # Map class_to_idx
+        for key in self.class_to_idx.keys():
+            self.class_to_idx[key] = self._class_order[self.class_to_idx[key]]
+                
+    def _map_new_class_index(self, y, order):
+        # map class y to its index of order
+        # y = [0, 1, 2, 3, 4]
+        # order = [1, 3, 0, 2, 4]
+        # result = [2, 0, 3, 1, 4] : 0 -> 2, 1 -> 0, 2 -> 3, 3 -> 1, 4 -> 4 
+        return np.array(list(map(lambda x: order.index(x), y)))
 
     @property
     def nb_tasks(self):
@@ -106,6 +122,15 @@ class DataManager(object):
 
     def get_task_size(self, task):
         return self._increment_steps[task]
+
+    def get_train_transform(self):
+        return transforms.Compose([*self._train_trsf, *self._common_trsf])
+    
+    def get_test_transform(self):
+        return transforms.Compose([*self._test_trsf, *self._common_trsf])
+    
+    def get_strong_transform(self):
+        return transforms.Compose([*self._strong_trsf, *self._common_trsf])
 
     def get_dataset(self, source, mode, indices=[], appendent=[], ret_data=False, two_view=False):
         """
@@ -183,8 +208,8 @@ class DataManager(object):
         else:
             raise ValueError('Unknown mode {}.'.format(mode))
 
-        train_data, train_targets, train_s_targets = [], [], []
-        val_data, val_targets, val_s_targets = [], [], []
+        train_data, train_targets = [], []
+        val_data, val_targets = [], []
         for idx in indices:
             class_data, class_targets = self._select(x, y, low_range=idx, high_range=idx+1)
             val_indx = np.random.choice(len(class_data), val_samples_per_class, replace=False)
@@ -197,7 +222,7 @@ class DataManager(object):
         sampler_data, sampler_targets = np.concatenate(train_data), np.concatenate(train_targets)
 
         if appendent is not None:
-            appendent_data, appendent_targets, appendent_s_targets = appendent
+            appendent_data, appendent_targets = appendent
             for idx in range(0, int(np.max(appendent_targets))+1):
                 append_data, append_targets = self._select(appendent_data, appendent_targets,
                                                            low_range=idx, high_range=idx+1)
@@ -256,7 +281,6 @@ class DataManager(object):
         else:
             return DummyDataset(data, targets, trsf, self.use_path)
 
-
     def _select(self, x, y, low_range, high_range, soft_y=None):
         """
         作用: 返回 x, y 中指定范围 (low_range, high_range) 中的数据
@@ -275,16 +299,6 @@ class DataManager(object):
             raise ValueError('Do not suppport yet!')
         else:
             return sampler_data
-
-
-
-
-# map class y to its index of order
-# y = [0, 1, 2, 3, 4]
-# order = [1, 3, 0, 2, 4]
-# result = [2, 0, 3, 1, 4] : 0 -> 2, 1 -> 0, 2 -> 3, 3 -> 1, 4 -> 4 
-def _map_new_class_index(y, order):
-    return np.array(list(map(lambda x: order.index(x), y)))
 
 
 

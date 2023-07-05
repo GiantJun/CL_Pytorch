@@ -1,9 +1,11 @@
 import numpy as np
+import torch
 from torch.utils.data import DataLoader
 
 from backbone.inc_net import IncrementalNet
 from methods.base import BaseLearner
-from utils.toolkit import accuracy, mean_class_recall, count_parameters, cal_ece
+from utils.toolkit import accuracy, mean_class_recall, count_parameters, cal_ece, tensor2numpy
+
 
 EPSILON = 1e-8
 
@@ -53,11 +55,65 @@ class Finetune_normal(BaseLearner):
         self._logger.info('Trainable params: {}'.format(count_parameters(self._network, True)))
         self._network = self._network.cuda()
 
+    def _epoch_train(self, model, train_loader, optimizer, scheduler):
+        losses = 0.
+        correct, total = 0, 0
+        model.train()
+        for _, inputs, targets in train_loader:
+            inputs, targets = inputs.cuda(), targets.cuda()
+
+            logits, feature_outputs = model(inputs)
+            loss = self._criterion(logits, targets)
+            preds = torch.max(logits, dim=1)[1]
+    
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            losses += loss.item()
+
+            correct += preds.eq(targets).cpu().sum()
+            total += len(targets)
+        
+        if scheduler != None:
+            scheduler.step()
+        train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
+        train_loss = ['Loss', losses/len(train_loader)]
+        return model, train_acc, train_loss
+
+    def _epoch_test(self, model, test_loader, ret_pred_target=False):
+        cnn_correct, total = 0, 0
+        cnn_pred_all, target_all, features_all = [], [], []
+        cnn_max_scores_all = []
+        model.eval()
+        for _, inputs, targets in test_loader:
+            inputs, targets = inputs.cuda(), targets.cuda()
+            outputs, feature_outputs = model(inputs)
+            cnn_max_scores, cnn_preds = torch.max(torch.softmax(outputs, dim=-1), dim=-1)
+            
+            if ret_pred_target:
+                cnn_pred_all.append(tensor2numpy(cnn_preds))
+                target_all.append(tensor2numpy(targets))
+                features_all.append(tensor2numpy(feature_outputs['features']))
+                cnn_max_scores_all.append(tensor2numpy(cnn_max_scores))
+            else:
+                cnn_correct += cnn_preds.eq(targets).cpu().sum()
+                total += len(targets)
+        
+        if ret_pred_target:
+            cnn_pred_all = np.concatenate(cnn_pred_all)
+            target_all = np.concatenate(target_all)
+            features_all = np.concatenate(features_all)
+            cnn_max_scores_all = np.concatenate(cnn_max_scores_all)
+            return cnn_pred_all, cnn_max_scores_all, target_all, features_all
+        else:
+            test_acc = np.around(tensor2numpy(cnn_correct)*100 / total, decimals=2)
+            return test_acc
+
     def eval_task(self):
         self._logger.info(50*"-")
         self._logger.info("log {} of the task".format(self._eval_metric))
         self._logger.info(50*"-")
-        cnn_pred, cnn_pred_score, y_true = self._epoch_test(self._network, self._test_loader, True)
+        cnn_pred, cnn_pred_score, y_true, features = self._epoch_test(self._network, self._test_loader, True)
 
         if self._eval_metric == 'acc':
             cnn_total, cnn_task = accuracy(cnn_pred.T, y_true, self._total_classes, self._increment_steps)
