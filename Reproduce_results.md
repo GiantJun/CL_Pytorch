@@ -18,7 +18,7 @@ $$BWT = \frac{1}{T-1}\sum_{i=2}^{T}\frac{1}{i}\sum_{j=1}^{i}(A_{j}^{i}-A_{j}^{j}
 `Average Forgetting (AvgF)` $\downarrow$:
 $$Avg F = \frac{1}{T-1}\sum_{i=1}^{T-1} (\max_{t=1,...,T-1}A_{i}^{t}-A_{i}^{T})$$
 
-The result of the methods may be affected by the incremental order (In my opinion). You can either generate more orders and average their results or increase the number of training iterations (Adjust the hyperparameters).
+The result of the methods may be affected by the incremental order (In my opinion), random seed. You can either generate more orders and average their results or increase the number of training iterations (Or adjust the hyperparameters).
 
 ---
 ## iCaRL: Incremental Classifier and Representation Learning. [[paper](https://arxiv.org/abs/1611.07725)]
@@ -382,3 +382,17 @@ Reproduced FAA: 85.13
 Official Paper Reported FAA: 85.16
 
 ---
+
+ACL: Adapter Learning in Pretrained Feature Extractor for Continual Learning of Diseases. MICCAI2023 [[paper](https://arxiv.org/abs/2304.09042)]
+
+Experiment setting (Class incremental): ImageNet1K pretrained resnet18, freeze FE, cifar100-b0i10, seed 1993
+
+```yaml
+
+```
+
+| Task 1 | Task 2 | Task 3 | Task 4 | Task 5 | Task 6 | Task 7 | Task 8 | Task 9 | Task 10 |
+| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------- |
+| 97.00  | 90.80  | 87.80  | 84.42  | 81.94  | 80.70  | 79.31  | 76.28  | 74.60  | 73.23   |
+
+Official Paper Reported Avg ACC: 82.61

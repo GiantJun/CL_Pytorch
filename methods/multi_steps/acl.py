@@ -19,7 +19,7 @@ def add_special_args(parser: ArgumentParser) -> ArgumentParser:
     parser.add_argument('--milestones_finetune', nargs='+', type=int, default=None, help='for multi step learning rate decay scheduler')
     return parser
 
-class Adapter_CL(Finetune_IL):
+class ACL(Finetune_IL):
     def __init__(self, logger, config):
         super().__init__(logger, config)
         self._layer_names = config.layer_names
@@ -83,7 +83,7 @@ class Adapter_CL(Finetune_IL):
         self._logger.info('Trainable params: {}'.format(count_parameters(self._network, True)))
         all_params, all_trainable_params = 0, 0
         for layer_id in self._config.layer_names:
-            adapter_id = layer_id.replace('.', '_')
+            adapter_id = layer_id.replace('.', '_')+'_adapters'
             if hasattr(self._network, adapter_id):
                 adapter_module = getattr(self._network, adapter_id)
                 
@@ -169,20 +169,15 @@ class Adapter_CL(Finetune_IL):
                 # stage 2
                 loss = torch.tensor(0.0)
                 known_class_num, total_class_num = 0, 0
-                unknown_logits = []
-                task_id_targets = torch.zeros(targets.shape[0], dtype=int).cuda()
                 for id, cur_class_num in enumerate(self._increment_steps[:task_id+1]):
                     total_class_num += cur_class_num + 1
                     task_logits = logits[:,known_class_num:total_class_num]
-                    unknown_logits.append(task_logits[:,-1])
                     
                     task_targets = (torch.ones(targets.shape[0], dtype=int) * cur_class_num).cuda() # class label: [0, cur_class_num]
                     task_data_idxs = torch.argwhere(torch.logical_and(targets>=known_class_num-id, targets<total_class_num-id-1)).squeeze(-1)
                     if len(task_data_idxs) > 0:
                         task_targets[task_data_idxs] = targets[task_data_idxs] - known_class_num + id
                         loss = loss + F.cross_entropy(task_logits, task_targets)
-
-                        task_id_targets[task_data_idxs] = id
 
                     if id == task_id:
                         preds = torch.argmax(logits[:,known_class_num:total_class_num], dim=1)
@@ -191,10 +186,8 @@ class Adapter_CL(Finetune_IL):
                 
                 ce_losses += loss.item()
 
-                unknown_logits = torch.stack(unknown_logits, dim=-1)
-                                
                 aux_targets = torch.where(targets-task_begin+1>0, targets-task_begin, task_end - task_begin)
-                correct += preds.eq(aux_targets).cpu().sum() # 将最后一个 task 的分类 acc 作为 train acc (二阶段 train acc 意义不大)
+                correct += preds.eq(aux_targets).cpu().sum()
     
             optimizer.zero_grad()
             loss.backward()
@@ -205,6 +198,8 @@ class Adapter_CL(Finetune_IL):
         
         if scheduler != None:
             scheduler.step()
+        
+        # train acc shows the performance of the model on current task
         train_acc = np.around(tensor2numpy(correct)*100 / total, decimals=2)
         train_loss = ['Loss', losses/len(train_loader), 'ce_loss', ce_losses/len(train_loader)]
         return model, train_acc, train_loss
@@ -232,7 +227,7 @@ class Adapter_CL(Finetune_IL):
                 cnn_preds, cnn_max_scores, task_id_pred_correct= self.min_others_test(logits=logits, targets=targets, task_id=task_id)
                 task_id_correct += task_id_pred_correct
 
-            if ret_pred_target:
+            if ret_pred_target: # only apply when self._is_training_adapters is False
                 cnn_pred_all.append(tensor2numpy(cnn_preds))
                 target_all.append(tensor2numpy(targets))
                 cnn_max_scores_all.append(tensor2numpy(cnn_max_scores))

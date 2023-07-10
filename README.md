@@ -1,4 +1,4 @@
-# Continual Learning Framework for Pytorch
+# CL-Pytorch: Continual Learning Framework for Pytorch
 
 This codebase implements some SOTA continual / incremental / lifelong learning methods by PyTorch.
 
@@ -22,7 +22,7 @@ Continual methods already supported:
 - [x] L2P: Learning to Prompt for continual learning. CVPR2022[[paper](https://arxiv.org/abs/2112.08654)]
 - [x] DualPrompt: Complementary Prompting for Rehearsal-free Continual Learning. ECCV2022 [[paper](https://arxiv.org/abs/2204.04799)]
 - [x] CODA-Prompt: COntinual Decomposed Attention-based Prompting for Rehearsal-Free Continual Learning. CVPR2023 [[paper](https://arxiv.org/abs/2211.13218)]
-- [x] Adapter-CL: Adapter Learning in Pretrained Feature Extractor for Continual Learning of Diseases. MICCAI2023 [[paper](https://arxiv.org/abs/2304.09042)]
+- [x] ACL: Adapter Learning in Pretrained Feature Extractor for Continual Learning of Diseases. MICCAI2023 [[paper](https://arxiv.org/abs/2304.09042)]
 
 Contrastive model pretraining methods already supported:
 
@@ -73,11 +73,15 @@ we put continual learning methods inplementations in `/methods/multi_steps` fold
 
 Supported Datasets:
 
-- Natural image datasets: CIFAR-10, CIFAR-100, ImageNet1K, ImageNet100, TinyImageNet
+- Natural image datasets: CIFAR-10, CIFAR-100, ImageNet100, ImageNet1K, ImageNet-R, TinyImageNet, CUB-200
 
-- Medical image datasets: MedMNIST, SD-198
+- Medical image datasets: MedMNIST, path16, Skin7, Skin8, Skin40
 
 More information about the supported datasets can be found in `datasets/`
+
+We use `os.environ['DATA']` to access image data. You can config your environment variables in your computer by editing `~/.bashrc` or just change the code.
+### Notations
++ 
 
 ### Reproduce Results
 More details can be found in [Reproduce_results.md](./markdowns/Reproduce_results.md).

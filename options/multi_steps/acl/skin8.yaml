@@ -9,7 +9,7 @@ basic:
     shuffle: false # true
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
-    method: adapter_cl
+    method: acl
     method_type: multi_steps
     # eval_metric Choises: acc, mcr
     eval_metric: mcr
