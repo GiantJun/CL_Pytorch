@@ -44,10 +44,10 @@ class DataManager(object):
                 np.random.seed(seed)
                 order = np.random.permutation(len(order)).tolist()
                 self._logger.info("class shuffle order is produced by seed {}".format(seed))
-            else:
-                np.random.seed(1993)
-                order = np.random.permutation(len(order)).tolist()
-                self._logger.info("class shuffle order is produced by seed 1993 (default)")
+            # else:
+            #     np.random.seed(1993)
+            #     order = np.random.permutation(len(order)).tolist()
+            #     self._logger.info("class shuffle order is produced by seed 1993 (default)")
 
             self._class_order = order
             self._logger.info('class order: {}'.format(self._class_order))

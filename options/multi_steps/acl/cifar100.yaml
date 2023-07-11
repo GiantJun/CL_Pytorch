@@ -64,7 +64,7 @@ options:
             
             epochs_finetune: 50 # 50
             lrate_finetune: 0.001
-            milestones_finetune: [55, 80]
+            milestones_finetune: [15, 35]
         
         mobilenet_v2:
             img_size: 224
@@ -86,7 +86,7 @@ options:
             
             epochs_finetune: 100 # 50
             lrate_finetune: 0.001
-            milestones_finetune: [55, 80]
+            milestones_finetune: [15, 35]
         
         efficientnet_b0:
             img_size: 224
@@ -108,4 +108,4 @@ options:
             
             epochs_finetune: 100 # 50
             lrate_finetune: 0.001
-            milestones_finetune: [55, 80]
+            milestones_finetune: [15, 35]

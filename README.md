@@ -1,5 +1,7 @@
 # CL-Pytorch: Continual Learning Framework for Pytorch
 
+<center><img src="imgs/Learning_and_forgetting.png" alt="Continual Learning" style="border-radius:50%; overflow:hidden;"/></center>
+
 This codebase implements some SOTA continual / incremental / lifelong learning methods by PyTorch.
 
 By the way, this is also the official repository of [Adapter Learning in Pretrained Feature Extractor for Continual Learning of Diseases. MICCAI2023](https://arxiv.org/abs/2304.09042)
