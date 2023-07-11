@@ -1,6 +1,8 @@
 # CL-Pytorch: Continual Learning Framework for Pytorch
 
-<center><img src="imgs/Learning_and_forgetting.png" alt="Continual Learning" style="border-radius:50%; overflow:hidden;"/></center>
+<div align=center>
+  <img src="imgs/Learning_and_forgetting.png" style="border-radius: 50%;">
+</div>
 
 This codebase implements some SOTA continual / incremental / lifelong learning methods by PyTorch.
 
