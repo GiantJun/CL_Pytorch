@@ -1,7 +1,7 @@
 # CL-Pytorch: Continual Learning Framework for Pytorch
 
 <div align=center>
-  <img src="imgs/Learning_and_forgetting.png" style="border-radius: 50%;">
+  <img src="imgs/Learning_and_forgetting.png">
 </div>
 
 This codebase implements some SOTA continual / incremental / lifelong learning methods by PyTorch.
@@ -67,7 +67,7 @@ python main.py --config options/XXX/XXX.yaml
 python main.py --checkpoint_dir logs/XXX/XXX.pkl
 ```
 
-If you want to temporary change GPU device in the experiment, you can type `--device #GPU_ID` without changing 'device' in `.yaml` config file.
+If you want to temporary change GPU device in the experiment, you can type `--device #GPU_ID` in terminal without changing 'device' in `.yaml` config file.
 
 ### Add datasets and your method
 
@@ -84,8 +84,6 @@ Supported Datasets:
 More information about the supported datasets can be found in `datasets/`
 
 We use `os.environ['DATA']` to access image data. You can config your environment variables in your computer by editing `~/.bashrc` or just change the code.
-### Notations
-+ 
 
 ### Reproduce Results
 More details can be found in [Reproduce_results.md](./markdowns/Reproduce_results.md).
@@ -107,3 +105,4 @@ https://github.com/aimagelab/mammoth
 - Results need to be checked: ewc
 - Methods need to be modified: mas, lwf
 - Multi GPU processing module need to be add.
+- A detailed documentation is coming soon
