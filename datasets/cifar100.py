@@ -23,7 +23,7 @@ class CIFAR100(iData):
             transforms.RandomCrop(32, padding=4), # 32, 4
             transforms.RandomHorizontalFlip(p=0.5),
             # transforms.RandomRotation(15),
-            # transforms.ColorJitter(brightness=63/255)
+            transforms.ColorJitter(brightness=63/255)
         ]
         self.test_trsf = []
         self.strong_trsf = [

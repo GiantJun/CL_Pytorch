@@ -43,12 +43,12 @@ def get_backbone(logger, backbone_type, pretrained=False, pretrain_path=None, no
         net = resnet18_cbam(normed=normed)
     elif name in torch_models.__dict__.keys():
         logger.info('getting model from torch...')
-        # for new version of pytorch (after 2022.7)
-        weights = 'DEFAULT' if pretrained and pretrain_path is None else None
-        net = torch_models.__dict__[name](weights=weights)
+        # # for new version of pytorch (after 2022.7)
+        # weights = 'DEFAULT' if pretrained and pretrain_path is None else None
+        # net = torch_models.__dict__[name](weights=weights)
         
         # for older version of pytorch
-        # net = torch_models.__dict__[name](pretrained=pretrained)
+        net = torch_models.__dict__[name](pretrained=pretrained)
     elif name in timm_models.__dict__.keys():
         logger.info('getting model from timm...')
         net = timm_models.create_model(backbone_type, pretrained=pretrained)

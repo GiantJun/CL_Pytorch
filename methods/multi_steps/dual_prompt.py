@@ -49,7 +49,7 @@ class Dual_Prompt(Finetune_IL):
 
         for name, param in self._network.named_parameters():
             if param.requires_grad:
-                self._logger.info('{} requre grad!'.format(name))
+                self._logger.info('{} require grad!'.format(name))
 
     def _epoch_train(self, model, train_loader, optimizer, scheduler, task_begin=None, task_end=None, task_id=None):
         losses = 0.

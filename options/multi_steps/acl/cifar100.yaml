@@ -1,12 +1,12 @@
 ######### Basic Settings #########
 basic:
-    device: '0'
+    device: '1'
     seed: [1993] # 42, 100, 1993
 
     # Dataset Choises: cifar100, cifar100, imagenet100, imagenet1000, tinyimagenet,
     # skin7, sd198(also known as skin40), mymedmnist
     dataset: cifar100
-    shuffle: false # true
+    shuffle: true # true
 
     # Method Choises: icarl, end2end, dr, ucir, bic, lwm, podnet, mas, joint， finetune
     method: acl

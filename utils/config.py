@@ -27,7 +27,7 @@ class Config:
         parser.add_argument('--config', type=str, default=None, help='yaml file of settings.')
         parser.add_argument('--checkpoint_dir', type=str, default=None, help="checkpoint's directory ready to load")
 
-        self.project = 'IL_Framework'
+        self.project = 'CL_Pytorch'
 
         self.init_overwrite_names = []
         self.load_overwrite_names = []

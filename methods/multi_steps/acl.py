@@ -100,7 +100,7 @@ class ACL(Finetune_IL):
         
         for name, param in self._network.named_parameters():
             if param.requires_grad:
-                self._logger.info('{} requre grad!'.format(name))
+                self._logger.info('{} require grad!'.format(name))
 
     def incremental_train(self):
         self._logger.info('-'*10 + ' Learning on task {}: {}-{} '.format(self._cur_task, self._known_classes, self._total_classes-1) + '-'*10)
@@ -132,7 +132,7 @@ class ACL(Finetune_IL):
             
             for name, param in self._network.named_parameters():
                 if param.requires_grad:
-                    self._logger.info('{} requre grad!'.format(name))
+                    self._logger.info('{} require grad!'.format(name))
 
             self._network = self._train_model(self._network, finetune_train_loader, self._test_loader, ft_optimizer, ft_scheduler, 
                 task_id=self._cur_task, epochs=self._epochs_finetune, note='stage2')

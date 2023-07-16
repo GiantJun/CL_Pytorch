@@ -9,7 +9,7 @@ import methods
 import wandb
 from multiprocessing import Process
 
-os.environ['WANDB_API_KEY']='faf0e04a242bbf756c5f2894f620681e0a7dc358'
+os.environ['WANDB_API_KEY']='xxxxxxxxxxxxxxxx'
 # os.environ['WANDB_MODE']='offline'
 
 class SweepWorker(Process):

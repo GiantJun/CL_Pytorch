@@ -98,7 +98,7 @@ class BiC(Finetune_IL):
         self._network.freeze_bias_layers()
         # for name, param in self._network.named_parameters():
         #     if param.requires_grad:
-        #         self._logger.info('{} requre grad!'.format(name))
+        #         self._logger.info('{} require grad!'.format(name))
         optimizer = self._get_optimizer(filter(lambda p: p.requires_grad, self._network.parameters()), self._config, False)
 
         scheduler = self._get_scheduler(optimizer, self._config, False)
@@ -117,7 +117,7 @@ class BiC(Finetune_IL):
             self._network.activate_bias_layers()
             # for name, param in self._network.named_parameters():
             #     if param.requires_grad:
-            #         self._logger.info('{} requre grad!'.format(name))
+            #         self._logger.info('{} require grad!'.format(name))
             optimizer = self._get_optimizer(self._network.bias_layers[-1].parameters(), self._config, False)
             scheduler = self._get_scheduler(optimizer, self._config, False)
 
