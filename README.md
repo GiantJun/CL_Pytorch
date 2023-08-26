@@ -86,7 +86,7 @@ More information about the supported datasets can be found in `datasets/`
 We use `os.environ['DATA']` to access image data. You can config your environment variables in your computer by editing `~/.bashrc` or just change the code.
 
 ### Reproduce Results
-More details can be found in [Reproduce_results.md](./markdowns/Reproduce_results.md).
+More details can be found in [Reproduce_results.md](./Reproduce_results.md).
 
 ## References
 
