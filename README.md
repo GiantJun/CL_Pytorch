@@ -34,21 +34,23 @@ Contrastive model pretraining methods already supported:
 - [x] SimSiam: Exploring Simple Siamese Representation Learning. [[paper](https://arxiv.org/abs/2011.10566)]
 
 Coming soon:
-
 - [ ] LwF:  Learning without Forgetting. ECCV2016 [[paper](https://arxiv.org/abs/1606.09282)]
 - [ ] EWC: Overcoming catastrophic forgetting in neural networks. PNAS2017 [[paper](https://arxiv.org/abs/1612.00796)]
 - [ ] LwM: Learning without Memorizing. [[paper](https://arxiv.org/abs/1811.08051)]
 - [ ] Layerwise Optimization by Gradient Decomposition for Continual Learning. CVPR2021[[paper](https://arxiv.org/abs/2105.07561v1)]
-- [ ] End2End: End-to-End Incremental Learning. [[paper](https://arxiv.org/abs/1807.09536)]
 - [ ] FOSTER: Feature Boosting and Compression for Class-incremental Learning. ECCV 2022 [[paper](https://arxiv.org/abs/2204.04662)]
 - [ ] Class-Incremental Continual Learning into the eXtended DER-verse. TPAMI 2022 [[paper](https://arxiv.org/abs/2201.00766)]
+- [ ] Continual Learning with Bayesian Model based on a Fixed Pre-trained Feature Extractor. MICCAI2021[[paper](https://arxiv.org/abs/2204.13349)]
+- [ ] Continual Learning of New Diseases with Dual Distillation and Ensemble Strategy. MICCAI2020[[paper](https://www.researchgate.net/publication/346015733_Continual_Learning_of_New_Diseases_with_Dual_Distillation_and_Ensemble_Strategy)]
 
 ## How to Use
 
 ### Prepare environment
 
 ```bash
-pip3 install pyyaml tensorboard tensorboard wandb scikit-learn timm quadprog tensorboardX
+conda create -n CL_Pytorch python=3.8
+conda activate CL_Pytorch
+pip install -r requirement.txt
 ```
 
 ### Run experiments
