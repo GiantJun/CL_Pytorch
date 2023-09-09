@@ -205,6 +205,7 @@ def resnet110():
 ### mention in icarl ###
 ###### cifar-resnet for resnet32, resnet32mnist... (end) ######
 
+
 ###### cifar-resnet for resnet18 (begin) ######
 ### mention in dark-er ###
 

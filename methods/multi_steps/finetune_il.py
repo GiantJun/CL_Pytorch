@@ -58,6 +58,7 @@ class Finetune_IL(BaseLearner):
         self._init_lrate_decay = config.lrate_decay if config.init_lrate_decay is None else config.init_lrate_decay
         self._init_weight_decay = config.weight_decay if config.init_weight_decay is None else config.init_weight_decay
         self._init_opt_mom = config.opt_mom if config.init_opt_mom is None else config._init_opt_mom
+        self._init_nesterov = config.nesterov if config.init_nesterov is None else config._init_nesterov
                 
     def prepare_task_data(self, data_manager):
         self._cur_task += 1
@@ -406,7 +407,8 @@ class Finetune_IL(BaseLearner):
             if config.opt_type == 'sgd':
                 optimizer = optim.SGD(params, lr=self._init_lrate,
                                       momentum=0 if self._init_opt_mom is None else self._init_opt_mom,
-                                      weight_decay=0 if self._init_weight_decay is None else self._init_weight_decay)
+                                      weight_decay=0 if self._init_weight_decay is None else self._init_weight_decay,
+                                      nesterov=False if self._init_nesterov is None else self._init_nesterov)
                 self._logger.info('Applying sgd: lr={}, momenton={}, weight_decay={}'.format(self._init_lrate, self._init_opt_mom, self._init_weight_decay))
             elif config.opt_type == 'adam':
                 optimizer = optim.Adam(params, lr=self._init_lrate,
@@ -422,7 +424,8 @@ class Finetune_IL(BaseLearner):
             if config.opt_type == 'sgd':
                 optimizer = optim.SGD(params, lr=config.lrate,
                                       momentum=0 if config.opt_mom is None else config.opt_mom,
-                                      weight_decay=0 if config.weight_decay is None else config.weight_decay)
+                                      weight_decay=0 if config.weight_decay is None else config.weight_decay,
+                                      nesterov=False if config.nesterov is None else config.nesterov)
                 self._logger.info('Applying sgd: lr={}, momenton={}, weight_decay={}'.format(config.lrate, config.opt_mom, config.weight_decay))
             elif config.opt_type == 'adam':
                 optimizer = optim.Adam(params, lr=config.lrate,

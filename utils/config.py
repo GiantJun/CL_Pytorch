@@ -75,6 +75,7 @@ class Config:
         parser.add_argument('--init_lrate', type=float, default=None, help='init training learning rate')
         parser.add_argument('--init_weight_decay', type=float, default=None, help='init weight decay for training')
         parser.add_argument('--init_opt_mom', type=float, default=None, help='init momenton for sgd')
+        parser.add_argument('--init_nesterov', type=bool, default=None, help='init nesterov for sgd')
 
         parser.add_argument('--init_scheduler', type=str, default=None, help='init learning rate decay method')
         parser.add_argument('--init_milestones', type=int, default=None, help='init milestones for training')
@@ -89,6 +90,7 @@ class Config:
         parser.add_argument('--lrate', type=float, default=None, help='training learning rate')
         parser.add_argument('--weight_decay', type=float, default=None, help='weight decay for sgd')
         parser.add_argument('--opt_mom', type=float, default=None, help='momenton for sgd')
+        parser.add_argument('--nesterov', type=bool, default=None, help='nesterov for sgd')
 
         parser.add_argument('--scheduler', type=str, default=None, help='learning rate decay method')
         parser.add_argument('--milestones', nargs='+', type=int, default=None, help='for multi step learning rate decay scheduler')
